@@ -1,16 +1,20 @@
-// client/src/services/api.js
 import axios from 'axios';
 
-// Define o endereço base do Backend
+// Se estivermos em Produção (Internet), usa o Render.
+// Se estivermos desenvolvendo (PC), usa o Localhost.
+const baseURL = import.meta.env.MODE === 'production' 
+  ? 'https://legalmind-api.onrender.com/api' 
+  : 'http://localhost:5000/api';
+
 const api = axios.create({
-  baseURL: 'http://localhost:5000/api', // Em produção, isso muda sozinho
+  baseURL,
 });
 
-// Interceptador: Adiciona o Token automaticamente em TODAS as requisições
+// Interceptor para adicionar o Token automaticamente
 api.interceptors.request.use((config) => {
-  const userInfo = JSON.parse(localStorage.getItem('userInfo'));
-  if (userInfo && userInfo.token) {
-    config.headers.Authorization = `Bearer ${userInfo.token}`;
+  const user = JSON.parse(localStorage.getItem('user'));
+  if (user && user.token) {
+    config.headers.Authorization = `Bearer ${user.token}`;
   }
   return config;
 });
