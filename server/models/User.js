@@ -1,8 +1,7 @@
-// server/models/User.js
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 
-const userSchema = mongoose.Schema({
+const userSchema = new mongoose.Schema({
   firstName: { type: String, required: true },
   lastName: { type: String, required: true },
   email: { type: String, required: true, unique: true },
@@ -12,29 +11,29 @@ const userSchema = mongoose.Schema({
   isAdmin: { type: Boolean, default: false },
   usageCount: { type: Number, default: 0 },
   
-  // --- CAMPOS DE RECUPERAÇÃO ---
   resetPasswordToken: String,
   resetPasswordExpire: Date,
 
-  // --- ITEM 4.3: CAMPOS 2FA (NOVO) ---
+  // CONFIGURAÇÃO 2FA
+  twoFactorEnabled: { type: Boolean, default: false },
   twoFactorCode: String,
   twoFactorExpires: Date,
-  // ----------------------------------
 
-}, {
-  timestamps: true,
+  // --- NOVO: ITEM 4.5 (CONTROLE DE SESSÃO) ---
+  tokenVersion: { type: Number, default: 0 },
+  // -------------------------------------------
+
+  createdAt: { type: Date, default: Date.now }
+});
+
+userSchema.pre('save', async function(next) {
+  if (!this.isModified('password')) return next();
+  const salt = await bcrypt.genSalt(10);
+  this.password = await bcrypt.hash(this.password, salt);
 });
 
 userSchema.methods.matchPassword = async function(enteredPassword) {
   return await bcrypt.compare(enteredPassword, this.password);
 };
-
-userSchema.pre('save', async function(next) {
-  if (!this.isModified('password')) {
-    next();
-  }
-  const salt = await bcrypt.genSalt(10);
-  this.password = await bcrypt.hash(this.password, salt);
-});
 
 module.exports = mongoose.model('User', userSchema);

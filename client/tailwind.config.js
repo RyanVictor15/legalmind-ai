@@ -4,17 +4,15 @@ export default {
     "./index.html",
     "./src/**/*.{js,ts,jsx,tsx}",
   ],
+  darkMode: 'class', // ESSENCIAL: Ativa a mudança manual
   theme: {
     extend: {
-      colors: {
-        legal: {
-          50: '#f0f9ff',
-          100: '#e0f2fe',
-          500: '#0ea5e9', // Azul Primário
-          900: '#0c4a6e', // Azul Profundo
-        }
-      }
+      fontFamily: {
+        inter: ['Inter', 'sans-serif'],
+      },
     },
   },
-  plugins: [],
+  plugins: [
+    require('@tailwindcss/typography'), // Mantenha se instalou, senão remova
+  ],
 }
