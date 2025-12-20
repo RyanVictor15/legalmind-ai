@@ -186,6 +186,27 @@ const Profile = () => {
                     <Trash2 size={16} /> Excluir Conta
                 </button>
 
+                <div className="mt-6 p-4 bg-slate-50 dark:bg-slate-800/50 rounded-lg border border-slate-200 dark:border-slate-700 flex items-center justify-between">
+    <div className="flex items-center gap-3">
+        <div className={`p-2 rounded-full ${formData.twoFactorEnabled ? 'bg-green-100 text-green-600' : 'bg-slate-200 text-slate-500'}`}>
+            <ShieldCheck size={24} />
+        </div>
+        <div>
+            <h4 className="text-sm font-bold text-slate-800 dark:text-white">Autenticação de Dois Fatores (2FA)</h4>
+            <p className="text-xs text-slate-500 dark:text-slate-400">Exige código por e-mail ao logar.</p>
+        </div>
+    </div>
+    <label className="relative inline-flex items-center cursor-pointer">
+        <input 
+            type="checkbox" 
+            checked={formData.twoFactorEnabled || false}
+            onChange={(e) => setFormData({...formData, twoFactorEnabled: e.target.checked})}
+            className="sr-only peer"
+        />
+        <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+    </label>
+</div>
+
                 <button 
                     type="submit" 
                     disabled={loading}

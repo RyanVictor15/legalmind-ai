@@ -1,4 +1,6 @@
 // server/index.js
+const mongoSanitize = require('express-mongo-sanitize');
+const xss = require('xss-clean');
 const express = require('express');
 const cors = require('cors');
 const dotenv = require('dotenv');
@@ -52,7 +54,6 @@ app.use(express.json({ limit: '10kb' })); // Limite de 10kb para evitar travamen
 // Previne injeção de NoSQL (remove caracteres $ e .)
 app.use(mongoSanitize());
 
-// Previne XSS (remove tags <script> maliciosas do body, query e params)
 app.use(xss());
 
 // Arquivos Estáticos (Uploads)
