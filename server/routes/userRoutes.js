@@ -8,9 +8,11 @@ const {
   loginUser, 
   getUserProfile, 
   updateUserProfile,
-  forgotPassword, // <--- TEM QUE ESTAR AQUI
-  resetPassword,  // <--- TEM QUE ESTAR AQUI
-  upgradeToPro
+  forgotPassword,
+  resetPassword,
+  upgradeToPro,
+  verifyTwoFactor,
+  deleteAccount 
 } = require('../controllers/userController');
 
 const { protect } = require('../middleware/authMiddleware');
@@ -18,6 +20,7 @@ const { protect } = require('../middleware/authMiddleware');
 // Rotas de Autenticação
 router.post('/register', registerUser);
 router.post('/login', loginUser);
+router.post('/verify-2fa', verifyTwoFactor);
 
 // Rotas de Perfil (Protegidas)
 router.route('/profile')
@@ -31,5 +34,6 @@ router.put('/upgrade', protect, upgradeToPro);
 router.post('/forgot-password', forgotPassword); // O Frontend chama essa
 router.put('/reset-password/:resetToken', resetPassword);
 // ------------------------------
+router.delete('/profile', protect, deleteAccount);
 
 module.exports = router;

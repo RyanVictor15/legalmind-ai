@@ -1,15 +1,26 @@
+// server/models/User.js
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 
 const userSchema = mongoose.Schema({
-  firstName: { type: String, required: true }, // Novo
-  lastName: { type: String, required: true },  // Novo
+  firstName: { type: String, required: true },
+  lastName: { type: String, required: true },
   email: { type: String, required: true, unique: true },
   password: { type: String, required: true },
+  
   isPro: { type: Boolean, default: false },
+  isAdmin: { type: Boolean, default: false },
   usageCount: { type: Number, default: 0 },
+  
+  // --- CAMPOS DE RECUPERAÇÃO ---
   resetPasswordToken: String,
   resetPasswordExpire: Date,
+
+  // --- ITEM 4.3: CAMPOS 2FA (NOVO) ---
+  twoFactorCode: String,
+  twoFactorExpires: Date,
+  // ----------------------------------
+
 }, {
   timestamps: true,
 });

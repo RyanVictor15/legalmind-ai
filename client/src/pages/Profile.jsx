@@ -1,8 +1,10 @@
+// client/src/pages/Profile.jsx
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../services/api';
 import toast from 'react-hot-toast';
-import { User, Lock, ArrowLeft, Save, Shield } from 'lucide-react';
+import { User, Lock, ArrowLeft, Save, Shield, Trash2, AlertTriangle } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
 
 const Profile = () => {
   const [firstName, setFirstName] = useState('');
@@ -12,7 +14,9 @@ const Profile = () => {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [isPro, setIsPro] = useState(false);
   const [usage, setUsage] = useState(0);
+  
   const navigate = useNavigate();
+  const { logout } = useAuth(); // Importa logout para limpar sessão ao deletar
 
   useEffect(() => {
     const fetchProfile = async () => {
@@ -44,7 +48,6 @@ const Profile = () => {
         password 
       });
 
-      // Atualiza o localStorage para refletir mudança de nome
       const userInfo = JSON.parse(localStorage.getItem('userInfo'));
       if (userInfo) {
           userInfo.firstName = data.firstName;
@@ -60,6 +63,22 @@ const Profile = () => {
     }
   };
 
+  // --- FUNÇÃO PARA DELETAR CONTA (ITEM 3.1) ---
+  const handleDeleteAccount = async () => {
+    const confirm = window.confirm("TEM CERTEZA? Essa ação apagará todos os seus processos e não pode ser desfeita.");
+    
+    if (confirm) {
+      try {
+        await api.delete('/users/profile');
+        toast.success("Conta excluída. Sentiremos sua falta.");
+        logout(); // Limpa o contexto
+        navigate('/'); // Manda para a Home
+      } catch (error) {
+        toast.error("Erro ao excluir conta.");
+      }
+    }
+  };
+
   return (
     <div className="min-h-screen bg-slate-50 font-inter py-10 px-4">
       <div className="max-w-2xl mx-auto">
@@ -67,7 +86,7 @@ const Profile = () => {
           <ArrowLeft size={20} className="mr-2"/> Voltar ao Dashboard
         </button>
 
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden mb-8">
           <div className="bg-slate-900 p-8 text-white flex justify-between items-center">
             <div>
               <h1 className="text-2xl font-bold flex items-center gap-2">
@@ -121,7 +140,7 @@ const Profile = () => {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Email (Não editável)</label>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Email</label>
                 <input 
                     type="email" 
                     className="w-full p-3 border border-slate-200 rounded-lg bg-slate-100 text-slate-500 cursor-not-allowed" 
@@ -162,6 +181,23 @@ const Profile = () => {
             </form>
           </div>
         </div>
+
+        {/* --- ZONA DE PERIGO (LGPD) --- */}
+        <div className="bg-red-50 rounded-2xl border border-red-200 p-8">
+            <h3 className="text-lg font-bold text-red-700 flex items-center gap-2 mb-4">
+                <AlertTriangle size={20}/> Zona de Perigo
+            </h3>
+            <p className="text-red-600 text-sm mb-6">
+                Ao deletar sua conta, todos os seus dados, histórico de processos e informações pessoais serão removidos permanentemente dos nossos servidores. Esta ação não pode ser desfeita.
+            </p>
+            <button 
+                onClick={handleDeleteAccount}
+                className="bg-white border border-red-300 text-red-600 px-6 py-3 rounded-lg font-bold hover:bg-red-600 hover:text-white transition flex items-center gap-2"
+            >
+                <Trash2 size={18}/> Excluir Minha Conta Permanentemente
+            </button>
+        </div>
+
       </div>
     </div>
   );

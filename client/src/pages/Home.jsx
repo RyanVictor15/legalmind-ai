@@ -1,164 +1,137 @@
-import React from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Scale, Shield, Zap, Check, ArrowRight, BookOpen, BarChart } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { ShieldCheck, BrainCircuit, FileText, ArrowRight, CheckCircle } from 'lucide-react';
 
-const Home = () => {
-  const navigate = useNavigate();
-
+export default function Home() {
   return (
-    <div className="min-h-screen bg-white font-inter text-slate-900">
-      
-      {/* --- NAVBAR --- */}
-      <nav className="border-b border-slate-100 sticky top-0 bg-white/80 backdrop-blur-md z-50">
-        <div className="max-w-7xl mx-auto px-6 h-20 flex justify-between items-center">
-          <div className="flex items-center gap-2">
-            <div className="bg-slate-900 p-2 rounded-lg text-white">
-              <Scale size={24} />
-            </div>
-            <span className="text-xl font-bold tracking-tight">Legal<span className="text-blue-600">Mind</span> AI</span>
-          </div>
-          <div className="flex gap-4">
-            <button onClick={() => navigate('/login')} className="px-5 py-2.5 font-medium text-slate-600 hover:text-slate-900 transition">
-              Entrar
-            </button>
-            <button onClick={() => navigate('/register')} className="px-5 py-2.5 bg-slate-900 text-white rounded-lg font-bold hover:bg-slate-800 transition shadow-lg shadow-slate-900/20">
-              Começar Grátis
-            </button>
-          </div>
+    <div className="min-h-screen bg-slate-900 text-white selection:bg-blue-500 selection:text-white">
+      {/* Navbar Simplificada */}
+      <nav className="container mx-auto px-6 py-6 flex justify-between items-center">
+        <div className="text-2xl font-bold tracking-tighter text-blue-500">
+          LegalMind<span className="text-white">AI</span>
+        </div>
+        <div className="space-x-4">
+          <Link to="/login" className="text-slate-300 hover:text-white font-medium transition-colors">
+            Entrar
+          </Link>
+          <Link to="/register" className="bg-blue-600 hover:bg-blue-700 px-5 py-2 rounded-lg font-bold transition-all">
+            Criar Conta
+          </Link>
         </div>
       </nav>
 
-      {/* --- HERO SECTION (A Promessa) --- */}
-      <header className="pt-20 pb-32 px-6 text-center max-w-5xl mx-auto">
-        <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-blue-50 text-blue-700 text-sm font-bold mb-8 border border-blue-100">
-          <Zap size={16} fill="currentColor"/> Nova IA v2.0 Disponível
+      {/* Hero Section */}
+      <div className="container mx-auto px-6 py-16 md:py-24 text-center">
+        <div className="inline-flex items-center bg-slate-800/50 rounded-full px-4 py-1 mb-8 border border-slate-700 backdrop-blur-sm">
+          <span className="w-2 h-2 bg-green-500 rounded-full mr-2 animate-pulse"></span>
+          <span className="text-sm font-medium text-slate-300">Inteligência Artificial v1.0 Online</span>
         </div>
-        <h1 className="text-5xl md:text-7xl font-extrabold tracking-tight text-slate-900 mb-8 leading-tight">
-          Inteligência Artificial para <br/>
-          <span className="bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-indigo-600">Advogados de Elite.</span>
+        
+        <h1 className="text-5xl md:text-7xl font-bold mb-8 tracking-tight leading-tight">
+          Análise Jurídica <br />
+          <span className="bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent">
+            Instantânea e Precisa
+          </span>
         </h1>
-        <p className="text-xl text-slate-500 mb-10 max-w-2xl mx-auto leading-relaxed">
-          Analise petições em segundos, preveja resultados de processos e pesquise jurisprudência com a tecnologia mais avançada do mercado.
+        
+        <p className="text-xl text-slate-400 mb-10 max-w-2xl mx-auto leading-relaxed">
+          Otimize seu escritório. Nossa IA analisa contratos, identifica riscos ocultos e sugere melhorias baseadas na lei brasileira em segundos.
         </p>
-        <div className="flex flex-col sm:flex-row justify-center gap-4">
-          <button onClick={() => navigate('/register')} className="px-8 py-4 bg-blue-600 text-white rounded-xl font-bold text-lg hover:bg-blue-700 transition flex items-center justify-center gap-2 shadow-xl shadow-blue-600/30">
-            Criar Conta Profissional <ArrowRight size={20}/>
-          </button>
-          <button className="px-8 py-4 bg-white border border-slate-200 text-slate-700 rounded-xl font-bold text-lg hover:bg-slate-50 transition">
-            Ver Demonstração
-          </button>
+        
+        <div className="flex flex-col sm:flex-row justify-center gap-4 mb-20">
+          <Link 
+            to="/register" 
+            className="px-8 py-4 bg-blue-600 hover:bg-blue-700 rounded-xl font-bold text-lg transition-all transform hover:scale-105 flex items-center justify-center gap-2 shadow-lg shadow-blue-900/20"
+          >
+            Começar Gratuitamente <ArrowRight size={20} />
+          </Link>
+          <Link 
+            to="/login" 
+            className="px-8 py-4 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-xl font-bold text-lg transition-all hover:text-white text-slate-300"
+          >
+            Acessar Demonstração
+          </Link>
         </div>
-        <p className="mt-6 text-sm text-slate-400">
-          * Não requer cartão de crédito para teste.
-        </p>
-      </header>
 
-      {/* --- FEATURES GRID --- */}
-      <section className="py-20 bg-slate-50 border-y border-slate-200">
-        <div className="max-w-7xl mx-auto px-6">
+        {/* Imagem/Demo Visual (Placeholder) */}
+        <div className="relative mx-auto max-w-4xl rounded-xl border border-slate-800 bg-slate-950/50 shadow-2xl overflow-hidden p-2">
+           <div className="bg-slate-900 rounded-lg p-8 border border-slate-800/50">
+              <div className="flex items-center gap-2 mb-4 border-b border-slate-800 pb-4">
+                 <div className="w-3 h-3 rounded-full bg-red-500"></div>
+                 <div className="w-3 h-3 rounded-full bg-yellow-500"></div>
+                 <div className="w-3 h-3 rounded-full bg-green-500"></div>
+                 <span className="ml-2 text-xs text-slate-500">Dashboard do Advogado</span>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8 text-left">
+                  <div className="space-y-3">
+                    <div className="h-4 bg-slate-800 rounded w-3/4"></div>
+                    <div className="h-4 bg-slate-800 rounded w-full"></div>
+                    <div className="h-4 bg-slate-800 rounded w-5/6"></div>
+                    <div className="mt-4 p-4 bg-red-900/20 border border-red-900/50 rounded-lg">
+                      <p className="text-red-400 text-sm font-semibold flex items-center gap-2">⚠️ Risco Detectado</p>
+                      <p className="text-slate-400 text-xs mt-1">Cláusula 4.2 abusiva conforme CDC Art. 51...</p>
+                    </div>
+                  </div>
+                  <div className="space-y-3 hidden md:block">
+                    <div className="h-4 bg-slate-800 rounded w-full"></div>
+                    <div className="h-4 bg-slate-800 rounded w-5/6"></div>
+                    <div className="h-32 bg-slate-800/50 rounded w-full border border-slate-800 border-dashed flex items-center justify-center text-slate-600 text-sm">
+                      Análise processada em 2.4s
+                    </div>
+                  </div>
+              </div>
+           </div>
+        </div>
+      </div>
+
+      {/* Features Grid */}
+      <div className="bg-slate-950 py-24 border-t border-slate-900">
+        <div className="container mx-auto px-6">
           <div className="text-center mb-16">
-            <h2 className="text-3xl font-bold text-slate-900">Tudo o que seu escritório precisa</h2>
-            <p className="text-slate-500 mt-2">Uma suíte completa de ferramentas jurídicas.</p>
+            <h2 className="text-3xl font-bold mb-4">Por que usar o LegalMind?</h2>
+            <p className="text-slate-400">Tecnologia de ponta para profissionais do direito.</p>
           </div>
           
           <div className="grid md:grid-cols-3 gap-8">
-            {/* Card 1 */}
-            <div className="bg-white p-8 rounded-2xl shadow-sm border border-slate-100 hover:shadow-md transition">
-              <div className="w-12 h-12 bg-blue-100 text-blue-600 rounded-lg flex items-center justify-center mb-6">
-                <BarChart size={24} />
-              </div>
-              <h3 className="text-xl font-bold mb-3">Análise Preditiva</h3>
-              <p className="text-slate-500 leading-relaxed">
-                Nossa IA lê seu PDF e calcula a probabilidade de êxito da causa com base em dados reais.
-              </p>
-            </div>
-            {/* Card 2 */}
-            <div className="bg-white p-8 rounded-2xl shadow-sm border border-slate-100 hover:shadow-md transition">
-              <div className="w-12 h-12 bg-indigo-100 text-indigo-600 rounded-lg flex items-center justify-center mb-6">
-                <BookOpen size={24} />
-              </div>
-              <h3 className="text-xl font-bold mb-3">Jurisprudência Inteligente</h3>
-              <p className="text-slate-500 leading-relaxed">
-                Busque precedentes em nosso banco de dados proprietário e copie ementas formatadas (ABNT).
-              </p>
-            </div>
-            {/* Card 3 */}
-            <div className="bg-white p-8 rounded-2xl shadow-sm border border-slate-100 hover:shadow-md transition">
-              <div className="w-12 h-12 bg-green-100 text-green-600 rounded-lg flex items-center justify-center mb-6">
-                <Shield size={24} />
-              </div>
-              <h3 className="text-xl font-bold mb-3">Segurança Militar</h3>
-              <p className="text-slate-500 leading-relaxed">
-                Seus dados e de seus clientes são criptografados. Privacidade total e conformidade com a LGPD.
-              </p>
-            </div>
+            <FeatureCard 
+              icon={<BrainCircuit className="w-10 h-10 text-purple-500" />}
+              title="Análise Preditiva"
+              desc="Nossa IA identifica cláusulas abusivas, riscos financeiros e ambiguidades antes que virem problemas judiciais."
+            />
+            <FeatureCard 
+              icon={<ShieldCheck className="w-10 h-10 text-blue-500" />}
+              title="Segurança Total"
+              desc="Seus documentos são processados em ambiente criptografado e não são utilizados para treinar modelos públicos."
+            />
+            <FeatureCard 
+              icon={<FileText className="w-10 h-10 text-green-500" />}
+              title="Resumos Executivos"
+              desc="Transforme 50 páginas de 'juridiquês' denso em um resumo executivo claro, direto e acionável."
+            />
           </div>
         </div>
-      </section>
+      </div>
 
-      {/* --- PRICING SECTION --- */}
-      <section className="py-24 px-6">
-        <div className="max-w-4xl mx-auto">
-          <div className="text-center mb-16">
-            <h2 className="text-3xl font-bold text-slate-900">Planos Transparentes</h2>
-            <p className="text-slate-500 mt-2">Escolha a melhor opção para sua carreira.</p>
-          </div>
-
-          <div className="grid md:grid-cols-2 gap-8 items-center">
-            {/* Free Tier */}
-            <div className="p-8 border border-slate-200 rounded-2xl hover:border-blue-200 transition">
-              <h3 className="text-lg font-bold text-slate-900">Plano Starter</h3>
-              <div className="my-4"><span className="text-4xl font-bold">R$ 0</span><span className="text-slate-500">/mês</span></div>
-              <p className="text-sm text-slate-500 mb-6">Para advogados iniciantes ou estudantes.</p>
-              <ul className="space-y-3 mb-8">
-                <li className="flex gap-2 text-sm text-slate-700"><Check size={18} className="text-green-500"/> 3 Análises de IA por dia</li>
-                <li className="flex gap-2 text-sm text-slate-700"><Check size={18} className="text-green-500"/> Busca básica de Jurisprudência</li>
-                <li className="flex gap-2 text-sm text-slate-700"><Check size={18} className="text-green-500"/> Suporte por email</li>
-              </ul>
-              <button onClick={() => navigate('/register')} className="w-full py-3 border border-slate-900 text-slate-900 font-bold rounded-lg hover:bg-slate-50 transition">
-                Começar Grátis
-              </button>
-            </div>
-
-            {/* Pro Tier */}
-            <div className="p-8 bg-slate-900 text-white rounded-2xl shadow-xl transform md:scale-105 relative">
-              <div className="absolute top-0 right-0 bg-gradient-to-r from-blue-500 to-indigo-500 text-white text-xs font-bold px-3 py-1 rounded-bl-lg rounded-tr-lg">
-                MAIS POPULAR
-              </div>
-              <h3 className="text-lg font-bold text-white">LegalMind Enterprise</h3>
-              <div className="my-4"><span className="text-4xl font-bold">R$ 97</span><span className="text-slate-400">/mês</span></div>
-              <p className="text-sm text-slate-400 mb-6">Para escritórios de alta performance.</p>
-              <ul className="space-y-3 mb-8">
-                <li className="flex gap-2 text-sm text-slate-200"><Check size={18} className="text-blue-400"/> Análises de IA Ilimitadas</li>
-                <li className="flex gap-2 text-sm text-slate-200"><Check size={18} className="text-blue-400"/> IA Jurídica Avançada (GPT-4/Gemini)</li>
-                <li className="flex gap-2 text-sm text-slate-200"><Check size={18} className="text-blue-400"/> Jurisprudência Completa</li>
-                <li className="flex gap-2 text-sm text-slate-200"><Check size={18} className="text-blue-400"/> Gestão de Documentos</li>
-              </ul>
-              <button onClick={() => navigate('/register')} className="w-full py-3 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-500 transition shadow-lg shadow-blue-900/50">
-                Assinar Enterprise
-              </button>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* --- FOOTER --- */}
-      <footer className="bg-slate-50 py-12 border-t border-slate-200">
-        <div className="max-w-7xl mx-auto px-6 flex flex-col md:flex-row justify-between items-center gap-6">
-          <div className="flex items-center gap-2">
-            <div className="bg-slate-900 p-1.5 rounded text-white"><Scale size={16} /></div>
-            <span className="font-bold text-slate-900">LegalMind AI</span>
-          </div>
-          <p className="text-sm text-slate-500">© 2025 LegalMind Tecnologia Jurídica Ltda. Todos os direitos reservados.</p>
-          <div className="flex gap-6 text-sm text-slate-500">
-            <a href="#" className="hover:text-slate-900">Termos</a>
-            <a href="#" className="hover:text-slate-900">Privacidade</a>
-            <a href="#" className="hover:text-slate-900">Contato</a>
+      {/* Footer */}
+      <footer className="border-t border-slate-900 bg-slate-950 py-12">
+        <div className="container mx-auto px-6 flex flex-col md:flex-row justify-between items-center text-slate-500 text-sm">
+          <p>© 2025 LegalMind AI. Todos os direitos reservados.</p>
+          <div className="flex gap-6 mt-4 md:mt-0">
+            <span className="hover:text-slate-300 cursor-pointer">Termos</span>
+            <span className="hover:text-slate-300 cursor-pointer">Privacidade</span>
+            <span className="hover:text-slate-300 cursor-pointer">Suporte</span>
           </div>
         </div>
       </footer>
     </div>
   );
-};
+}
 
-export default Home;
+function FeatureCard({ icon, title, desc }) {
+  return (
+    <div className="bg-slate-900/50 p-8 rounded-2xl border border-slate-800 hover:border-slate-700 transition-colors group">
+      <div className="mb-6 bg-slate-800 w-fit p-3 rounded-xl group-hover:scale-110 transition-transform duration-300">{icon}</div>
+      <h3 className="text-xl font-bold mb-3 text-white">{title}</h3>
+      <p className="text-slate-400 leading-relaxed text-sm">{desc}</p>
+    </div>
+  );
+}

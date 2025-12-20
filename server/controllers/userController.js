@@ -1,4 +1,5 @@
 // server/controllers/userController.js
+const Document = require('../models/Document');
 const User = require('../models/User');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
@@ -54,22 +55,93 @@ const loginUser = async (req, res) => {
     const { email, password } = req.body;
     const user = await User.findOne({ email });
 
+    // Verifica senha
     if (user && (await user.matchPassword(password))) {
-      res.json({
-        _id: user._id,
-        firstName: user.firstName,
-        lastName: user.lastName,
-        email: user.email,
-        token: generateToken(user._id),
-        isPro: user.isPro,
-        usageCount: user.usageCount
-      });
+      
+      // GERA CÓDIGO DE 6 DÍGITOS
+      const code = Math.floor(100000 + Math.random() * 900000).toString();
+
+      // Salva o HASH do código no banco (para segurança)
+      user.twoFactorCode = crypto.createHash('sha256').update(code).digest('hex');
+      user.twoFactorExpires = Date.now() + 10 * 60 * 1000; // Validade de 10 min
+      
+      await user.save({ validateBeforeSave: false });
+
+      // MANDA O EMAIL
+      const message = `
+        <div style="font-family: Arial, sans-serif; padding: 20px; border: 1px solid #eee;">
+          <h2>Seu Código de Segurança:</h2>
+          <h1 style="font-size: 32px; letter-spacing: 5px; color: #2563eb;">${code}</h1>
+          <p>Este código expira em 10 minutos.</p>
+        </div>
+      `;
+
+      try {
+        await sendEmail({
+          email: user.email,
+          subject: 'Código de Acesso - LegalMind AI',
+          message,
+        });
+
+        // NÃO MANDA O TOKEN AINDA. Manda aviso que precisa de 2FA.
+        res.json({ 
+          requires2FA: true, 
+          email: user.email,
+          message: 'Código enviado para o e-mail.' 
+        });
+
+      } catch (emailError) {
+        user.twoFactorCode = undefined;
+        user.twoFactorExpires = undefined;
+        await user.save({ validateBeforeSave: false });
+        return res.status(500).json({ message: 'Erro ao enviar código 2FA.' });
+      }
+
     } else {
       res.status(401).json({ message: 'Email ou senha inválidos' });
     }
   } catch (error) {
      console.error('Erro no login:', error);
      res.status(500).json({ message: 'Erro interno no servidor' });
+  }
+};
+
+// --- 2.5 LOGIN PARTE 2: VERIFICA CÓDIGO E LIBERA ---
+const verifyTwoFactor = async (req, res) => {
+  const { email, code } = req.body;
+
+  try {
+    // Cria o hash do código que o usuário digitou para comparar com o banco
+    const hashedCode = crypto.createHash('sha256').update(code).digest('hex');
+
+    const user = await User.findOne({
+      email,
+      twoFactorCode: hashedCode,
+      twoFactorExpires: { $gt: Date.now() }, // Verifica se não expirou
+    });
+
+    if (!user) {
+      return res.status(400).json({ message: 'Código inválido ou expirado.' });
+    }
+
+    // Sucesso! Limpa o código e libera o Token
+    user.twoFactorCode = undefined;
+    user.twoFactorExpires = undefined;
+    await user.save({ validateBeforeSave: false });
+
+    res.json({
+      _id: user._id,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      email: user.email,
+      token: generateToken(user._id), // O CRACHÁ É ENTREGUE AQUI
+      isPro: user.isPro,
+      isAdmin: user.isAdmin,
+      usageCount: user.usageCount
+    });
+
+  } catch (error) {
+    res.status(500).json({ message: 'Erro ao verificar código.' });
   }
 };
 
@@ -253,12 +325,30 @@ const upgradeToPro = async (req, res) => {
   }
 };
 
+const deleteAccount = async (req, res) => {
+  try {
+    const userId = req.user._id;
+
+    // 1. Apagar todos os documentos/análises desse usuário
+    await Document.deleteMany({ userId: userId });
+
+    // 2. Apagar o usuário
+    await User.findByIdAndDelete(userId);
+
+    res.json({ success: true, message: 'Conta e dados excluídos permanentemente.' });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Erro ao excluir conta.' });
+  }
+};
+
 module.exports = { 
   registerUser, 
   loginUser, 
   getUserProfile, 
   updateUserProfile, 
+  upgradeToPro, 
   forgotPassword, 
-  resetPassword, 
-  upgradeToPro 
+  resetPassword,
+  deleteAccount
 };

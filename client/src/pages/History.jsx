@@ -1,9 +1,8 @@
-// client/src/pages/History.jsx
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-// Adicionei 'Download'
-import { BarChart2, FileText, Calendar, ChevronRight, Loader2, Shield, LogOut, User, Download } from 'lucide-react';
-import api from '../services/api'; // Usa a API centralizada
+// ITEM 3.3: Adicionado ícone 'Eye' para visualização
+import { BarChart2, FileText, Calendar, ChevronRight, Loader2, Shield, LogOut, User, Download, Eye } from 'lucide-react';
+import api from '../services/api'; 
 
 const History = () => {
   const [documents, setDocuments] = useState([]);
@@ -27,6 +26,11 @@ const History = () => {
   const handleLogout = () => {
     localStorage.removeItem('userInfo');
     navigate('/');
+  };
+
+  // Função dedicada para abrir a análise
+  const openAnalysis = (doc) => {
+    navigate('/dashboard', { state: { document: doc } });
   };
 
   return (
@@ -95,7 +99,8 @@ const History = () => {
                         {documents.map((doc) => (
                             <tr 
                                 key={doc._id} 
-                                onClick={() => navigate('/dashboard', { state: { document: doc } })}
+                                // O clique na linha inteira funciona
+                                onClick={() => openAnalysis(doc)}
                                 className="hover:bg-blue-50 transition duration-150 cursor-pointer group"
                             >
                                 <td className="p-5 font-medium text-slate-800 flex items-center gap-3">
@@ -116,23 +121,30 @@ const History = () => {
                                         {doc.verdict?.toUpperCase() || 'NEUTRO'}
                                     </span>
                                 </td>
-                                {/* COLUNA DE AÇÕES COM DOWNLOAD */}
-                                <td className="p-5 flex items-center gap-3">
+                                {/* COLUNA DE AÇÕES MELHORADA */}
+                                <td className="p-5 flex items-center gap-2">
+                                    {/* Botão Visualizar */}
+                                    <button 
+                                        onClick={(e) => { e.stopPropagation(); openAnalysis(doc); }}
+                                        className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-100 rounded-full transition"
+                                        title="Ver Análise Completa"
+                                    >
+                                        <Eye size={20}/>
+                                    </button>
+
+                                    {/* Botão Download */}
                                     {doc.filePath && (
                                         <a 
                                             href={`http://localhost:5000/${doc.filePath}`} 
                                             target="_blank" 
                                             rel="noopener noreferrer"
-                                            onClick={(e) => e.stopPropagation()} // Impede de abrir o dashboard ao clicar
-                                            className="p-2 text-slate-400 hover:text-green-600 hover:bg-green-50 rounded-full transition"
-                                            title="Baixar Arquivo Original"
+                                            onClick={(e) => e.stopPropagation()} 
+                                            className="p-2 text-slate-400 hover:text-green-600 hover:bg-green-100 rounded-full transition"
+                                            title="Baixar Original"
                                         >
                                             <Download size={20}/>
                                         </a>
                                     )}
-                                    <button className="text-slate-300 group-hover:text-blue-600 transition">
-                                        <ChevronRight size={20}/>
-                                    </button>
                                 </td>
                             </tr>
                         ))}
