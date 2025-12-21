@@ -1,176 +1,90 @@
-// server/controllers/analyzeController.js
-
-// 1. CORREÇÃO DE REDE/SSL (Obrigatório)
-process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
-
 const fs = require('fs');
 const pdf = require('pdf-parse');
-const Sentiment = require('sentiment');
-const Document = require('../models/Document');
-const { GoogleGenerativeAI } = require("@google/generative-ai");
-const sentiment = new Sentiment();
+const { GoogleGenerativeAI } = require('@google/generative-ai');
 
-const analyzeWithGemini = async (text) => {
+// Initialize Gemini AI
+// Security: API Key must be in .env
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+
+const analyzeDocument = async (req, res) => {
+  let filePath = null;
+
   try {
-    const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-    
-    // Modelo Estável
-    const model = genAI.getGenerativeModel({ model: "gemini-flash-latest" });
+    // 1. Validate Upload
+    if (!req.file) {
+      return res.status(400).json({ status: 'error', message: 'No file uploaded.' });
+    }
+
+    filePath = req.file.path;
+    let extractedText = '';
+
+    // 2. Extract Text based on Mime Type
+    if (req.file.mimetype === 'application/pdf') {
+      const dataBuffer = fs.readFileSync(filePath);
+      const data = await pdf(dataBuffer);
+      extractedText = data.text;
+    } else if (req.file.mimetype === 'text/plain') {
+      extractedText = fs.readFileSync(filePath, 'utf8');
+    } else {
+      // Fallback for unsupported types that bypassed multer (rare)
+      throw new Error('Unsupported file type processing.');
+    }
+
+    if (!extractedText || extractedText.trim().length === 0) {
+      throw new Error('Extracted text is empty.');
+    }
+
+    // 3. AI Analysis (Gemini)
+    // Use a lighter model for speed, or Pro for reasoning
+    const model = genAI.getGenerativeModel({ model: "gemini-pro" });
 
     const prompt = `
-      ATUE COMO UM ADVOGADO SÊNIOR ESPECIALISTA EM LEIS BRASILEIRAS.
+      You are a specialized legal assistant (LegalMind AI).
+      Analyze the following legal document text and provide a structured summary in JSON format:
+      1. Case Summary (Brief overview)
+      2. Key Arguments (List of main points)
+      3. Success Probability (Estimate 0-100% based on text tone/facts)
+      4. Recommended Actions (Bullet points)
       
-      Analise o texto abaixo:
-      """
-      ${text.substring(0, 30000)}
-      """
-
-      --- PARTE 1: ANÁLISE TEXTUAL ---
-      Escreva uma análise jurídica completa formatada em MARKDOWN.
-      Siga a estrutura:
-      # 1. 📋 Resumo Executivo
-      # 2. ⚠️ Pontos de Atenção e Riscos
-      # 3. ⚖️ Fundamentação Legal (Cite Leis Brasileiras)
-      # 4. 💡 Sugestões de Melhoria
-      # 5. 📊 Veredito Final
-
-      --- PARTE 2: DADOS ESTRUTURADOS ---
-      Ao final, pule duas linhas e escreva EXATAMENTE: "---DADOS_JSON---"
-      Logo após, forneça APENAS um JSON válido com esta estrutura exata:
-      {
-        "successProbability": (Número INTEIRO de 0 a 100. Onde 0 é causa perdida e 100 é causa ganha),
-        "verdictShort": ("Favorável", "Moderado" ou "Desfavorável"),
-        "sentimentKeywords": {
-          "positive": ["lista", "palavras", "boas"],
-          "negative": ["lista", "palavras", "ruins"]
-        }
-      }
+      Document Text:
+      "${extractedText.substring(0, 10000)}" 
+      // Truncated to 10k chars to avoid token limits
     `;
 
     const result = await model.generateContent(prompt);
     const response = await result.response;
-    const fullText = response.text();
+    const analysisText = response.text();
 
-    // Separação Texto vs JSON
-    const parts = fullText.split("---DADOS_JSON---");
-    const markdownAnalysis = parts[0].trim();
-    
-    // Valor padrão caso falhe o JSON
-    let jsonFinal = { 
-        successProbability: 50, 
-        verdictShort: "Análise Concluída", 
-        sentimentKeywords: { positive: [], negative: [] } 
-    };
-
-    if (parts.length > 1) {
-      try {
-        const jsonString = parts[1].replace(/```json/g, '').replace(/```/g, '').trim();
-        const parsed = JSON.parse(jsonString);
-        
-        // Garante que os campos existem
-        jsonFinal.successProbability = parsed.successProbability || parsed.riskScore || 50;
-        jsonFinal.verdictShort = parsed.verdictShort || "Neutro";
-        jsonFinal.sentimentKeywords = parsed.sentimentKeywords || { positive: [], negative: [] };
-
-      } catch (e) {
-        console.error("Erro ao ler JSON da IA, usando padrão.", e);
+    // 4. Send Response
+    res.json({
+      status: 'success',
+      data: {
+        analysis: analysisText, // AI output
+        metadata: {
+          filename: req.file.originalname,
+          size: req.file.size
+        }
       }
-    }
-
-    return { markdownAnalysis, jsonFinal };
-
-  } catch (error) {
-    console.error("Erro na IA do Google:", error);
-    throw error;
-  }
-};
-
-const getVerdict = (score) => {
-  if (score > 1) return 'Favorável';
-  if (score < -1) return 'Desfavorável';
-  return 'Neutro';
-};
-
-exports.analyzeDocument = async (req, res) => {
-  try {
-    const user = req.user; 
-    
-    if (!user) return res.status(401).json({ error: 'Usuário não identificado.' });
-
-    if (!user.isPro && user.usageCount >= 3) {
-      if (req.file && req.file.path) fs.unlinkSync(req.file.path);
-      return res.status(403).json({ error: 'LIMIT_REACHED' });
-    }
-
-    if (!req.file && !req.body.text) return res.status(400).json({ error: 'Nenhum arquivo enviado.' });
-
-    let extractedText = '';
-    let originalName = "Texto Manual";
-    let filePathDB = "";
-
-    if (req.file) {
-      originalName = req.file.originalname;
-      // Garante caminho relativo para o banco
-      filePathDB = req.file.path.replace(/\\/g, "/").split('server/')[1] || req.file.path.replace(/\\/g, "/");
-      
-      if (req.file.mimetype === 'application/pdf' || req.file.originalname.endsWith('.pdf')) {
-        const dataBuffer = fs.readFileSync(req.file.path);
-        const pdfData = await pdf(dataBuffer);
-        extractedText = pdfData.text;
-      } else {
-        extractedText = fs.readFileSync(req.file.path, 'utf8');
-      }
-    } else {
-      extractedText = req.body.text;
-    }
-
-    // IA REAL
-    const { markdownAnalysis, jsonFinal } = await analyzeWithGemini(extractedText);
-    const sentimentResult = sentiment.analyze(extractedText);
-
-    const analysisResult = new Document({
-      filename: originalName,
-      filePath: filePathDB,
-      originalText: extractedText,
-      
-      // Dados visuais
-      aiSummary: markdownAnalysis,
-      
-      // AQUI ESTÁ A CORREÇÃO: Usamos successProbability no campo riskAnalysis
-      // (Mantivemos o nome 'riskAnalysis' no banco para não ter que apagar o banco de dados, 
-      // mas agora ele guarda a CHANCE DE SUCESSO).
-      riskAnalysis: jsonFinal.successProbability, 
-      
-      verdict: jsonFinal.verdictShort,
-      keywords: jsonFinal.sentimentKeywords,
-      
-      sentimentScore: sentimentResult.score,
-      sentimentComparative: sentimentResult.comparative,
-      
-      userId: user._id
     });
 
-    await analysisResult.save();
-
-    user.usageCount = user.usageCount + 1;
-    await user.save();
-
-    res.status(200).json(analysisResult);
-
   } catch (error) {
-    console.error("Erro Final:", error);
-    if (error.message && error.message.includes('429')) {
-        return res.status(429).json({ message: "IA sobrecarregada. Tente em 1 minuto." });
+    console.error('Analysis Error:', error);
+    res.status(500).json({ 
+      status: 'error', 
+      message: error.message || 'Error processing document.' 
+    });
+
+  } finally {
+    // 5. CLEANUP: Delete file after processing to save space
+    if (filePath && fs.existsSync(filePath)) {
+      try {
+        fs.unlinkSync(filePath);
+        console.log(`🗑️ Deleted temp file: ${filePath}`);
+      } catch (err) {
+        console.error(`⚠️ Failed to delete file: ${filePath}`, err);
+      }
     }
-    res.status(500).json({ message: 'Erro ao processar análise.', error: error.message });
   }
 };
 
-exports.getHistory = async (req, res) => {
-  try {
-      const documents = await Document.find({ userId: req.user._id }).sort({ createdAt: -1 });
-      res.status(200).json(documents);
-  } catch (error) {
-      res.status(500).json({ error: 'Erro ao buscar dados.' });
-  }
-};
+module.exports = { analyzeDocument };

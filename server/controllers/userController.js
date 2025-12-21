@@ -1,30 +1,29 @@
-// server/controllers/userController.js
-const User = require('../models/User');
-const Document = require('../models/Document');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
+const User = require('../models/User');
+const Document = require('../models/Document');
 const sendEmail = require('../utils/sendEmail');
 
-// --- ATUALIZADO: Token agora leva a versão ---
+// Generate Token with Version (Enforces Session Invalidating)
 const generateToken = (id, tokenVersion) => {
   return jwt.sign({ id, tokenVersion }, process.env.JWT_SECRET, { expiresIn: '30d' });
 };
 
-// 1. REGISTRAR
+// 1. REGISTER
 const registerUser = async (req, res) => {
   try {
     const { firstName, lastName, email, password } = req.body;
 
     if (!firstName || !lastName || !email || !password) {
-      return res.status(400).json({ message: 'Todos os campos são obrigatórios.' });
+      return res.status(400).json({ status: 'error', message: 'All fields are required.' });
     }
     if (password.length < 6) {
-      return res.status(400).json({ message: 'A senha deve ter no mínimo 6 caracteres.' });
+      return res.status(400).json({ status: 'error', message: 'Password must be at least 6 characters.' });
     }
     
     const userExists = await User.findOne({ email });
     if (userExists) {
-      return res.status(400).json({ message: 'Este email já está registrado.' });
+      return res.status(400).json({ status: 'error', message: 'Email already registered.' });
     }
 
     const user = await User.create({ firstName, lastName, email, password });
@@ -35,20 +34,20 @@ const registerUser = async (req, res) => {
         firstName: user.firstName,
         lastName: user.lastName,
         email: user.email,
-        token: generateToken(user._id, user.tokenVersion), // Versão 0
+        token: generateToken(user._id, user.tokenVersion),
         isPro: user.isPro,
         twoFactorEnabled: user.twoFactorEnabled
       });
     } else {
-      res.status(400).json({ message: 'Dados inválidos' });
+      res.status(400).json({ status: 'error', message: 'Invalid user data.' });
     }
   } catch (error) {
-    console.error('Erro no registro:', error);
-    res.status(500).json({ message: 'Erro interno no servidor.' });
+    console.error('Register Error:', error);
+    res.status(500).json({ status: 'error', message: 'Server error.' });
   }
 };
 
-// 2. LOGIN (Incrementa versão e derruba sessões antigas)
+// 2. LOGIN (Increments version and invalidates old sessions)
 const loginUser = async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -56,17 +55,17 @@ const loginUser = async (req, res) => {
 
     if (user && (await user.matchPassword(password))) {
       
-      // FLUXO COM 2FA
+      // 2FA Flow
       if (user.twoFactorEnabled) {
         const code = Math.floor(100000 + Math.random() * 900000).toString();
         user.twoFactorCode = crypto.createHash('sha256').update(code).digest('hex');
-        user.twoFactorExpires = Date.now() + 10 * 60 * 1000;
+        user.twoFactorExpires = Date.now() + 10 * 60 * 1000; // 10 mins
         
         await user.save({ validateBeforeSave: false });
 
         const message = `
           <div style="font-family: Arial, sans-serif; padding: 20px;">
-            <h2>Seu Código de Segurança</h2>
+            <h2>Your Security Code</h2>
             <h1 style="color: #2563eb;">${code}</h1>
           </div>
         `;
@@ -74,26 +73,26 @@ const loginUser = async (req, res) => {
         try {
           await sendEmail({
             email: user.email,
-            subject: 'Código de Acesso - LegalMind AI',
+            subject: 'Access Code - LegalMind AI',
             message,
           });
 
           return res.json({ 
             requires2FA: true, 
             email: user.email,
-            message: 'Código de segurança enviado.' 
+            message: 'Security code sent to email.' 
           });
 
         } catch (emailError) {
           user.twoFactorCode = undefined;
           user.twoFactorExpires = undefined;
           await user.save({ validateBeforeSave: false });
-          return res.status(500).json({ message: 'Erro ao enviar código 2FA.' });
+          return res.status(500).json({ status: 'error', message: 'Error sending 2FA code.' });
         }
       }
 
-      // LOGIN DIRETO -> DERRUBAR SESSÃO ANTIGA
-      user.tokenVersion = (user.tokenVersion || 0) + 1; // INCREMENTA
+      // Direct Login -> Invalidate old sessions
+      user.tokenVersion = (user.tokenVersion || 0) + 1;
       await user.save();
 
       res.json({
@@ -101,7 +100,7 @@ const loginUser = async (req, res) => {
         firstName: user.firstName,
         lastName: user.lastName,
         email: user.email,
-        token: generateToken(user._id, user.tokenVersion), // Token novo
+        token: generateToken(user._id, user.tokenVersion),
         isPro: user.isPro,
         isAdmin: user.isAdmin,
         twoFactorEnabled: user.twoFactorEnabled,
@@ -109,15 +108,15 @@ const loginUser = async (req, res) => {
       });
 
     } else {
-      res.status(401).json({ message: 'Email ou senha inválidos' });
+      res.status(401).json({ status: 'error', message: 'Invalid email or password.' });
     }
   } catch (error) {
-     console.error('Erro no login:', error);
-     res.status(500).json({ message: 'Erro interno no servidor' });
+     console.error('Login Error:', error);
+     res.status(500).json({ status: 'error', message: 'Server error.' });
   }
 };
 
-// 2.5 VERIFICAR 2FA (Também derruba sessão antiga ao validar)
+// 2.5 VERIFY 2FA
 const verifyTwoFactor = async (req, res) => {
   const { email, code } = req.body;
 
@@ -131,14 +130,13 @@ const verifyTwoFactor = async (req, res) => {
     });
 
     if (!user) {
-      return res.status(400).json({ message: 'Código inválido ou expirado.' });
+      return res.status(400).json({ status: 'error', message: 'Invalid or expired code.' });
     }
 
-    // Sucesso
+    // Success -> Clear code & Invalidate old sessions
     user.twoFactorCode = undefined;
     user.twoFactorExpires = undefined;
     
-    // DERRUBAR SESSÃO ANTIGA
     user.tokenVersion = (user.tokenVersion || 0) + 1;
     await user.save({ validateBeforeSave: false });
 
@@ -155,11 +153,11 @@ const verifyTwoFactor = async (req, res) => {
     });
 
   } catch (error) {
-    res.status(500).json({ message: 'Erro ao verificar código.' });
+    res.status(500).json({ status: 'error', message: 'Verification error.' });
   }
 };
 
-// ... getUserProfile (Mantenha igual, não usa generateToken)
+// 3. GET USER PROFILE
 const getUserProfile = async (req, res) => {
   const user = await User.findById(req.user._id);
   if (user) {
@@ -175,11 +173,11 @@ const getUserProfile = async (req, res) => {
       createdAt: user.createdAt
     });
   } else {
-    res.status(404).json({ message: 'Usuário não encontrado' });
+    res.status(404).json({ status: 'error', message: 'User not found.' });
   }
 };
 
-// 4. ATUALIZAR PERFIL (Se mudar senha, derruba outros PCs)
+// 4. UPDATE USER PROFILE
 const updateUserProfile = async (req, res) => {
   const user = await User.findById(req.user._id);
 
@@ -193,10 +191,10 @@ const updateUserProfile = async (req, res) => {
 
     if (req.body.password) {
       if (req.body.password.length < 6) {
-         return res.status(400).json({ message: 'A senha deve ter no mínimo 6 caracteres.' });
+         return res.status(400).json({ status: 'error', message: 'Password must be at least 6 characters.' });
       }
       user.password = req.body.password;
-      // MUDOU SENHA? DERRUBA GERAL!
+      // Password changed? Invalidate all other sessions!
       user.tokenVersion = (user.tokenVersion || 0) + 1;
     }
     
@@ -209,48 +207,72 @@ const updateUserProfile = async (req, res) => {
       email: updatedUser.email,
       isPro: updatedUser.isPro,
       twoFactorEnabled: updatedUser.twoFactorEnabled,
-      token: generateToken(updatedUser._id, updatedUser.tokenVersion), // Token atualizado
+      token: generateToken(updatedUser._id, updatedUser.tokenVersion),
     });
   } else {
-    res.status(404).json({ message: 'Usuário não encontrado' });
+    res.status(404).json({ status: 'error', message: 'User not found.' });
   }
 };
 
-// ... Mantenha forgotPassword e resetPassword iguais
+// 5. FORGOT PASSWORD
 const forgotPassword = async (req, res) => {
-    // ... (Use o código da resposta anterior para esta função)
-    // Se quiser, posso repetir aqui, mas para economizar espaço assumo que você tem.
-    // Mas para garantir a integridade, vou colocar o bloco resumido:
   const { email } = req.body;
   try {
     const user = await User.findOne({ email });
-    if (!user) return res.status(404).json({ message: 'Email não encontrado.' });
+    if (!user) return res.status(404).json({ status: 'error', message: 'Email not found.' });
+    
     const resetToken = crypto.randomBytes(20).toString('hex');
     user.resetPasswordToken = crypto.createHash('sha256').update(resetToken).digest('hex');
-    user.resetPasswordExpire = Date.now() + 10 * 60 * 1000;
+    user.resetPasswordExpire = Date.now() + 10 * 60 * 1000; // 10 mins
+    
     await user.save({ validateBeforeSave: false });
-    const resetUrl = `http://localhost:5173/reset-password/${resetToken}`;
-    await sendEmail({ email: user.email, subject: 'Redefinição de Senha', message: `Link: ${resetUrl}` });
-    res.status(200).json({ success: true, data: 'Email enviado!' });
-  } catch (error) { res.status(500).json({ message: 'Erro interno.' }); }
+    
+    // Security Fix: Use env variable for client URL
+    const clientUrl = process.env.CLIENT_URL || 'http://localhost:5173';
+    const resetUrl = `${clientUrl}/reset-password/${resetToken}`;
+    
+    await sendEmail({ 
+      email: user.email, 
+      subject: 'Password Reset Request', 
+      message: `Click here to reset your password: ${resetUrl}` 
+    });
+    
+    res.status(200).json({ status: 'success', message: 'Email sent!' });
+  } catch (error) {
+    user.resetPasswordToken = undefined;
+    user.resetPasswordExpire = undefined;
+    await user.save({ validateBeforeSave: false });
+    res.status(500).json({ status: 'error', message: 'Server error.' });
+  }
 };
 
+// 6. RESET PASSWORD
 const resetPassword = async (req, res) => {
-    // ... (Lógica padrão)
   const resetPasswordToken = crypto.createHash('sha256').update(req.params.resetToken).digest('hex');
+  
   try {
-    const user = await User.findOne({ resetPasswordToken, resetPasswordExpire: { $gt: Date.now() } });
-    if (!user) return res.status(400).json({ message: 'Link inválido.' });
+    const user = await User.findOne({ 
+      resetPasswordToken, 
+      resetPasswordExpire: { $gt: Date.now() } 
+    });
+
+    if (!user) return res.status(400).json({ status: 'error', message: 'Invalid or expired token.' });
+
     user.password = req.body.password;
     user.resetPasswordToken = undefined;
     user.resetPasswordExpire = undefined;
-    // Ao resetar senha, também derruba sessões antigas
+    
+    // Invalidate sessions on password reset
     user.tokenVersion = (user.tokenVersion || 0) + 1;
+    
     await user.save();
-    res.status(200).json({ success: true, data: 'Senha atualizada!' });
-  } catch (error) { res.status(500).json({ message: 'Erro ao redefinir.' }); }
+    res.status(200).json({ status: 'success', message: 'Password updated!' });
+  } catch (error) { 
+    res.status(500).json({ status: 'error', message: 'Reset password error.' }); 
+  }
 };
 
+// 7. UPGRADE TO PRO
 const upgradeToPro = async (req, res) => {
   try {
     const user = await User.findById(req.user._id);
@@ -258,31 +280,33 @@ const upgradeToPro = async (req, res) => {
       user.isPro = true;
       user.usageCount = 0;
       await user.save();
+      
       res.json({
         _id: user._id,
         firstName: user.firstName,
         lastName: user.lastName,
         email: user.email,
-        token: generateToken(user._id, user.tokenVersion), // Mantém versão
+        token: generateToken(user._id, user.tokenVersion),
         isPro: user.isPro,
         twoFactorEnabled: user.twoFactorEnabled
       });
     } else {
-      res.status(404).json({ message: 'Usuário não encontrado' });
+      res.status(404).json({ status: 'error', message: 'User not found.' });
     }
   } catch (error) {
-    res.status(500).json({ message: 'Erro ao processar upgrade' });
+    res.status(500).json({ status: 'error', message: 'Upgrade processing error.' });
   }
 };
 
+// 8. DELETE ACCOUNT
 const deleteAccount = async (req, res) => {
   try {
     const userId = req.user._id;
     await Document.deleteMany({ userId: userId });
     await User.findByIdAndDelete(userId);
-    res.json({ success: true, message: 'Conta excluída.' });
+    res.json({ status: 'success', message: 'Account deleted.' });
   } catch (error) {
-    res.status(500).json({ message: 'Erro ao excluir conta.' });
+    res.status(500).json({ status: 'error', message: 'Delete account error.' });
   }
 };
 

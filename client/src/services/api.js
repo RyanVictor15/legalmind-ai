@@ -1,30 +1,44 @@
-// client/src/services/api.js
 import axios from 'axios';
 
-// Define se usa o Render (Nuvem) ou Localhost
-const baseURL = import.meta.env.MODE === 'production' 
-  ? 'https://legalmind-api.onrender.com/api' 
-  : 'http://localhost:5000/api';
-
+// Create Axios instance with default config
 const api = axios.create({
-  baseURL,
+  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:5000/api',
+  timeout: 10000, // 10s timeout
+  headers: {
+    'Content-Type': 'application/json',
+  },
 });
 
-// O INTERCEPTADOR MÁGICO
-api.interceptors.request.use((config) => {
-  // 1. Tenta pegar os dados salvos
-  const userInfo = localStorage.getItem('userInfo');
-  
-  if (userInfo) {
-    const parsedUser = JSON.parse(userInfo);
-    // 2. Se tiver token, cola no cabeçalho
-    if (parsedUser.token) {
-      config.headers.Authorization = `Bearer ${parsedUser.token}`;
+// 1. REQUEST INTERCEPTOR (Inject Token)
+api.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem('token');
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
     }
+    return config;
+  },
+  (error) => {
+    return Promise.reject(error);
   }
-  return config;
-}, (error) => {
-  return Promise.reject(error);
-});
+);
+
+// 2. RESPONSE INTERCEPTOR (Global Error Handling)
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    // Handle 401 Unauthorized (Token Expired/Invalid)
+    if (error.response && error.response.status === 401) {
+      console.warn('⚠️ Session expired. Redirecting to login...');
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      // Optional: Force reload or redirect using window.location if not inside a Component
+      // window.location.href = '/login';
+    }
+    
+    // Pass the error to the calling component
+    return Promise.reject(error);
+  }
+);
 
 export default api;

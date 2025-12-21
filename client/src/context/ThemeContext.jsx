@@ -3,7 +3,7 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 const ThemeContext = createContext();
 
 export const ThemeProvider = ({ children }) => {
-  // 1. Tenta pegar do localStorage ou usa preferência do sistema
+  // 1. Try fetching from localStorage or use system preference
   const [theme, setTheme] = useState(() => {
     if (localStorage.getItem('theme')) {
       return localStorage.getItem('theme');
@@ -11,7 +11,7 @@ export const ThemeProvider = ({ children }) => {
     return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
   });
 
-  // 2. Aplica a classe 'dark' no elemento HTML principal
+  // 2. Apply 'dark' class to the main HTML element
   useEffect(() => {
     const root = window.document.documentElement;
     if (theme === 'dark') {

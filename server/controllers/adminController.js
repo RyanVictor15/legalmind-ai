@@ -1,39 +1,45 @@
-// server/controllers/adminController.js
 const User = require('../models/User');
 const Document = require('../models/Document');
 
-// @desc    Obter estatísticas do sistema
+// @desc    Get system statistics
 // @route   GET /api/admin/stats
 const getSystemStats = async (req, res) => {
   try {
-    // Conta total de usuários
+    // Total user count
     const totalUsers = await User.countDocuments();
     
-    // Conta usuários Pro
+    // Pro users count
     const proUsers = await User.countDocuments({ isPro: true });
     
-    // Conta total de documentos analisados
+    // Total documents analyzed
     const totalDocuments = await Document.countDocuments();
     
-    // Lista os 5 usuários mais recentes
+    // List 5 most recent users
     const latestUsers = await User.find()
       .sort({ createdAt: -1 })
       .limit(5)
       .select('firstName lastName email createdAt isPro');
 
-    res.json({
-      users: {
-        total: totalUsers,
-        pro: proUsers,
-        free: totalUsers - proUsers
-      },
-      documents: {
-        total: totalDocuments
-      },
-      latestUsers
+    res.status(200).json({
+      status: 'success',
+      data: {
+        users: {
+          total: totalUsers,
+          pro: proUsers,
+          free: totalUsers - proUsers
+        },
+        documents: {
+          total: totalDocuments
+        },
+        latestUsers
+      }
     });
   } catch (error) {
-    res.status(500).json({ message: 'Erro ao buscar estatísticas' });
+    console.error('Admin Stats Error:', error);
+    res.status(500).json({ 
+      status: 'error', 
+      message: 'Error fetching system statistics.' 
+    });
   }
 };
 

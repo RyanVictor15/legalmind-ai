@@ -4,40 +4,58 @@ const User = require('../models/User');
 const protect = async (req, res, next) => {
   let token;
 
+  // Check for Bearer token in headers
   if (
     req.headers.authorization &&
     req.headers.authorization.startsWith('Bearer')
   ) {
     try {
-      token = req.headers.authorization.split(' ')[1];
+      // Get token from header
+      token = req.headers.authorization.split('')[1];
 
-      // Decodifica o token
+      // Verify token
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-      // Busca o usuário
-      const user = await User.findById(decoded.id).select('-password');
+      // Get user from the token (exclude password)
+      req.user = await User.findById(decoded.id).select('-password');
 
-      // --- CHECAGEM DE SESSÃO (ITEM 4.5) ---
-      // Se o usuário não existir OU a versão do token for velha -> Bloqueia
-      // (Se user.tokenVersion for undefined no banco, tratamos como 0)
-      const currentVersion = user.tokenVersion || 0;
-      
-      if (!user || decoded.tokenVersion !== currentVersion) {
-        return res.status(401).json({ message: 'Sessão expirada. Logue novamente.' });
+      if (!req.user) {
+        return res.status(401).json({ 
+          status: 'error', 
+          message: 'Not authorized, user not found' 
+        });
       }
-      // -------------------------------------
 
-      req.user = user;
       next();
     } catch (error) {
-      console.error(error);
-      res.status(401).json({ message: 'Não autorizado, token falhou' });
+      console.error(`❌ Auth Error: ${error.message}`);
+      
+      // Differentiate between expired and invalid tokens
+      const message = error.name === 'TokenExpiredError' 
+        ? 'Session expired, please login again' 
+        : 'Not authorized, token failed';
+
+      return res.status(401).json({ status: 'error', message });
     }
   }
 
   if (!token) {
-    res.status(401).json({ message: 'Não autorizado, sem token' });
+    return res.status(401).json({ 
+      status: 'error', 
+      message: 'Not authorized, no token provided' 
+    });
   }
 };
 
-module.exports = { protect };
+const admin = (req, res, next) => {
+  if (req.user && req.user.role === 'admin') {
+    next();
+  } else {
+    res.status(403).json({ 
+      status: 'error', 
+      message: 'Access denied: Admin privileges required' 
+    });
+  }
+};
+
+module.exports = { protect, admin };

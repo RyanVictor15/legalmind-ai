@@ -1,75 +1,74 @@
-// server/index.js
-const mongoSanitize = require('express-mongo-sanitize');
-const xss = require('xss-clean');
 const express = require('express');
 const cors = require('cors');
 const dotenv = require('dotenv');
-const connectDB = require('./config/db');
 const path = require('path');
-
-// --- SEGURANÇA ---
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
-const mongoSanitize = require('express-mongo-sanitize'); // NOVO: Item 4.4
-const xss = require('xss-clean'); // NOVO: Item 4.4
-// ----------------
+const mongoSanitize = require('express-mongo-sanitize');
+const xss = require('xss-clean');
+const connectDB = require('./config/db');
+const { notFound, errorHandler } = require('./middleware/errorMiddleware');
 
-// Rotas
+// Routes
 const analyzeRoutes = require('./routes/analyzeRoutes');
 const userRoutes = require('./routes/userRoutes');
 const jurisprudenceRoutes = require('./routes/jurisprudenceRoutes');
-// const adminRoutes = require('./routes/adminRoutes'); // Descomente se usar
+const adminRoutes = require('./routes/adminRoutes');
+const paymentRoutes = require('./routes/paymentRoutes'); // Nova Rota
 
 dotenv.config();
+
+// Pre-Flight Check (Validation)
+if (!process.env.STRIPE_SECRET_KEY) {
+  console.error('❌ FATAL: STRIPE_SECRET_KEY is missing in .env');
+  process.exit(1);
+}
+
 connectDB();
 
 const app = express();
 
-// 1. HELMET (Headers de Segurança HTTP)
-app.use(helmet({
-  contentSecurityPolicy: false, // Desabilitado para evitar conflitos no MVP
-  crossOriginEmbedderPolicy: false
+// 1. SECURITY & CONFIG
+app.use(helmet({ contentSecurityPolicy: false, crossOriginEmbedderPolicy: false }));
+app.use(cors({ origin: process.env.CLIENT_URL || '*' })); // Restrict in production
+
+// 2. STRIPE WEBHOOK HANDLING (MUST BE BEFORE GLOBAL JSON PARSER)
+// We need the raw body specifically for the webhook route to verify signature
+app.use('/api/payments/webhook', express.raw({ type: 'application/json' }));
+
+// 3. GLOBAL PARSER (For all other routes)
+app.use(express.json({ 
+  limit: '10kb',
+  verify: (req, res, buf) => {
+    // Opcional: guardar rawBody se precisar validar assinaturas em outras rotas JSON
+    req.rawBody = buf.toString();
+  }
 }));
 
-// 2. RATE LIMITING (Proteção contra força bruta/DDoS)
-const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutos
-  max: 100, // Limite de 100 requisições por IP
-  message: {
-    message: 'Muitas requisições criadas a partir deste IP, por favor tente novamente após 15 minutos.'
-  },
-  standardHeaders: true,
-  legacyHeaders: false,
-});
+// 4. SANITIZATION & LIMITER
+app.use(mongoSanitize());
+app.use(xss());
+const limiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 100 });
 app.use('/api', limiter);
 
-// 3. CORS
-app.use(cors()); 
-
-// 4. PARSER (Transforma o corpo da req em JSON)
-// Importante: A sanitização precisa vir DEPOIS disso
-app.use(express.json({ limit: '10kb' })); // Limite de 10kb para evitar travamento com JSON gigante
-
-// 5. SANITIZAÇÃO (Item 4.4 - A Blindagem Real)
-// Previne injeção de NoSQL (remove caracteres $ e .)
-app.use(mongoSanitize());
-
-app.use(xss());
-
-// Arquivos Estáticos (Uploads)
+// Static Files
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
-// Rotas da API
+// 5. API ROUTES
 app.use('/api/analyze', analyzeRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/jurisprudence', jurisprudenceRoutes);
-// app.use('/api/admin', adminRoutes); 
+app.use('/api/admin', adminRoutes);
+app.use('/api/payments', paymentRoutes); // Mount Payment Routes
 
-app.get('/', (req, res) => {
-  res.send('API LegalMind AI - Segura e Limitada 🛡️');
-});
+// Root
+app.get('/', (req, res) => res.status(200).json({ status: 'Operational', mode: process.env.NODE_ENV }));
+
+// Error Handling
+app.use(notFound);
+app.use(errorHandler);
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
-  console.log(`✅ Servidor rodando na porta ${PORT}`);
+  console.log(`✅ Server running on port ${PORT}`);
 });

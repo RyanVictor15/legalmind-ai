@@ -7,21 +7,23 @@ const userSchema = new mongoose.Schema({
   email: { type: String, required: true, unique: true },
   password: { type: String, required: true },
   
-  isPro: { type: Boolean, default: false },
+  // Status do Sistema
   isAdmin: { type: Boolean, default: false },
-  usageCount: { type: Number, default: 0 },
   
+  // Dados de Assinatura (Stripe)
+  isPro: { type: Boolean, default: false },
+  stripeCustomerId: { type: String },
+  subscriptionId: { type: String },
+  subscriptionStatus: { type: String, default: 'free' }, // active, past_due, canceled, free
+  billingCycleEnd: { type: Date },
+
+  // Segurança
   resetPasswordToken: String,
   resetPasswordExpire: Date,
-
-  // CONFIGURAÇÃO 2FA
   twoFactorEnabled: { type: Boolean, default: false },
   twoFactorCode: String,
   twoFactorExpires: Date,
-
-  // --- NOVO: ITEM 4.5 (CONTROLE DE SESSÃO) ---
   tokenVersion: { type: Number, default: 0 },
-  // -------------------------------------------
 
   createdAt: { type: Date, default: Date.now }
 });

@@ -1,8 +1,7 @@
-// server/routes/userRoutes.js
 const express = require('express');
 const router = express.Router();
 
-// Importamos TODAS as funções do Controller
+// Import ALL Controller functions
 const { 
   registerUser, 
   loginUser, 
@@ -17,23 +16,24 @@ const {
 
 const { protect } = require('../middleware/authMiddleware');
 
-// Rotas de Autenticação
+// Auth Routes
 router.post('/register', registerUser);
 router.post('/login', loginUser);
 router.post('/verify-2fa', verifyTwoFactor);
 
-// Rotas de Perfil (Protegidas)
+// Profile Routes (Protected)
 router.route('/profile')
   .get(protect, getUserProfile)
   .put(protect, updateUserProfile);
 
-// Rota de Upgrade
+// Upgrade Route
 router.put('/upgrade', protect, upgradeToPro);
 
-// --- AS NOVAS ROTAS DE SENHA ---
-router.post('/forgot-password', forgotPassword); // O Frontend chama essa
+// Password Management Routes
+router.post('/forgot-password', forgotPassword);
 router.put('/reset-password/:resetToken', resetPassword);
-// ------------------------------
+
+// Account Management
 router.delete('/profile', protect, deleteAccount);
 
 module.exports = router;

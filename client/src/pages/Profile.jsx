@@ -1,222 +1,209 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { User, Lock, Trash2, Save, ArrowLeft, AlertTriangle } from 'lucide-react';
 import api from '../services/api';
+import toast from 'react-hot-toast';
+import { User, Shield, Key, Save, Loader2, LogOut } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { useNavigate } from 'react-router-dom';
 
 const Profile = () => {
+  const { user, setUser, logout } = useAuth();
   const navigate = useNavigate();
-  const { user, login, logout } = useAuth(); // login usado para atualizar estado local
   
-  const [formData, setFormData] = useState({
-    firstName: '',
-    lastName: '',
-    email: '',
-    password: '',
-    confirmPassword: ''
-  });
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [twoFactorEnabled, setTwoFactorEnabled] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState({ type: '', text: '' });
 
   useEffect(() => {
     if (user) {
-      setFormData(prev => ({
-        ...prev,
-        firstName: user.firstName || '',
-        lastName: user.lastName || '',
-        email: user.email || ''
-      }));
+      setFirstName(user.firstName || '');
+      setLastName(user.lastName || '');
+      setEmail(user.email || '');
+      setTwoFactorEnabled(user.twoFactorEnabled || false);
     }
   }, [user]);
 
-  const handleChange = (e) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
-  };
-
-  const handleUpdateProfile = async (e) => {
+  const handleUpdate = async (e) => {
     e.preventDefault();
-    setLoading(true);
-    setMessage({ type: '', text: '' });
-
-    if (formData.password && formData.password !== formData.confirmPassword) {
-      setLoading(false);
-      return setMessage({ type: 'error', text: 'As senhas não conferem.' });
+    
+    if (password && password !== confirmPassword) {
+      return toast.error("Passwords do not match.");
     }
 
+    setLoading(true);
+    const toastId = toast.loading("Updating profile...");
+
     try {
-      // Atualiza dados
-      const { data } = await api.put('/users/profile', {
-        firstName: formData.firstName,
-        lastName: formData.lastName,
-        email: formData.email,
-        password: formData.password || undefined // Só envia se preenchido
-      });
+      const payload = {
+        firstName,
+        lastName,
+        twoFactorEnabled,
+      };
 
-      // Atualiza contexto global e localStorage
+      if (password) payload.password = password;
+
+      const { data } = await api.put('/users/profile', payload);
+
+      // Update Local State & Context
       const updatedUser = { ...user, ...data };
-      localStorage.setItem('userInfo', JSON.stringify(updatedUser));
-      // Força recarregamento simples ou atualiza via contexto se tiver função update
-      // Aqui vamos assumir reload para simplificar ou re-login silencioso
-      alert('Perfil atualizado com sucesso!');
-      window.location.reload(); 
+      if (data.token) updatedUser.token = data.token; // Update token if version changed
 
+      localStorage.setItem('userInfo', JSON.stringify(updatedUser));
+      setUser(updatedUser);
+      api.defaults.headers.common['Authorization'] = `Bearer ${updatedUser.token}`;
+
+      toast.success("Profile updated successfully!", { id: toastId });
+      setPassword('');
+      setConfirmPassword('');
     } catch (error) {
-      setMessage({ type: 'error', text: error.response?.data?.message || 'Erro ao atualizar.' });
+      console.error(error);
+      toast.error(error.response?.data?.message || "Update failed.", { id: toastId });
     } finally {
       setLoading(false);
     }
   };
 
   const handleDeleteAccount = async () => {
-    if (window.confirm('TEM CERTEZA? Esta ação é irreversível e apagará todo seu histórico.')) {
+    if (window.confirm("Are you sure? This action cannot be undone and deletes all your data.")) {
         try {
             await api.delete('/users/profile');
             logout();
+            toast.success("Account deleted.");
             navigate('/');
         } catch (error) {
-            alert('Erro ao deletar conta.');
+            toast.error("Failed to delete account.");
         }
     }
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 font-inter p-6 flex justify-center items-center">
-      <div className="bg-white max-w-2xl w-full rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-        
-        {/* Header */}
-        <div className="bg-slate-900 p-6 flex justify-between items-center text-white">
-          <div className="flex items-center gap-4">
-            <button onClick={() => navigate('/dashboard')} className="p-2 hover:bg-slate-800 rounded-full transition">
-               <ArrowLeft size={20} />
-            </button>
-            <h1 className="text-xl font-bold">Meu Perfil</h1>
-          </div>
-          <div className="bg-blue-600 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider">
-            {user?.isPro ? 'Enterprise' : 'Plano Gratuito'}
-          </div>
-        </div>
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-900 p-8 font-inter transition-colors duration-300">
+      <div className="max-w-4xl mx-auto">
+        <h1 className="text-3xl font-bold text-slate-800 dark:text-white mb-8 flex items-center gap-3">
+          <User className="text-blue-600" size={32} /> My Profile
+        </h1>
 
-        <div className="p-8">
-          {message.text && (
-            <div className={`p-4 rounded-lg mb-6 text-sm flex items-center gap-2 ${message.type === 'error' ? 'bg-red-50 text-red-700' : 'bg-green-50 text-green-700'}`}>
-              {message.type === 'error' ? <AlertTriangle size={16}/> : <Save size={16}/>}
-              {message.text}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+          
+          {/* LEFT CARD: IDENTITY */}
+          <div className="md:col-span-1 space-y-6">
+            <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 text-center">
+              <div className="w-24 h-24 bg-slate-200 dark:bg-slate-700 rounded-full mx-auto mb-4 flex items-center justify-center text-4xl font-bold text-slate-500 dark:text-slate-400">
+                {firstName.charAt(0)}{lastName.charAt(0)}
+              </div>
+              <h2 className="text-xl font-bold text-slate-800 dark:text-white">{firstName} {lastName}</h2>
+              <p className="text-sm text-slate-500 dark:text-slate-400">{email}</p>
+              
+              <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-700">
+                 <span className={`px-3 py-1 rounded-full text-xs font-bold ${user?.isPro ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-600'}`}>
+                    {user?.isPro ? '👑 ENTERPRISE' : '🔹 FREE PLAN'}
+                 </span>
+              </div>
             </div>
-          )}
-
-          <form onSubmit={handleUpdateProfile} className="space-y-6">
             
-            {/* Dados Pessoais */}
-            <div className="space-y-4">
-                <h3 className="text-slate-800 font-bold flex items-center gap-2 border-b pb-2">
-                    <User size={18} className="text-blue-600"/> Dados Pessoais
+            <button onClick={() => navigate('/dashboard')} className="w-full bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 p-3 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 transition font-medium">
+                Back to Dashboard
+            </button>
+            
+             <button onClick={handleDeleteAccount} className="w-full text-red-500 hover:text-red-700 text-sm mt-4 underline">
+                Delete My Account
+            </button>
+          </div>
+
+          {/* RIGHT CARD: SETTINGS FORM */}
+          <div className="md:col-span-2">
+            <form onSubmit={handleUpdate} className="bg-white dark:bg-slate-800 p-8 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 space-y-6">
+              
+              <div>
+                <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-4 flex items-center gap-2">
+                    <Shield size={20} className="text-blue-500"/> Personal Information
                 </h3>
                 <div className="grid grid-cols-2 gap-4">
-                    <div>
-                        <label className="block text-sm font-medium text-slate-600 mb-1">Nome</label>
-                        <input
-                            type="text"
-                            name="firstName"
-                            value={formData.firstName}
-                            onChange={handleChange}
-                            className="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
-                        />
-                    </div>
-                    <div>
-                        <label className="block text-sm font-medium text-slate-600 mb-1">Sobrenome</label>
-                        <input
-                            type="text"
-                            name="lastName"
-                            value={formData.lastName}
-                            onChange={handleChange}
-                            className="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
-                        />
-                    </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-500 uppercase mb-1">First Name</label>
+                    <input 
+                      type="text" 
+                      className="w-full p-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                      value={firstName}
+                      onChange={(e) => setFirstName(e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Last Name</label>
+                    <input 
+                      type="text" 
+                      className="w-full p-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                      value={lastName}
+                      onChange={(e) => setLastName(e.target.value)}
+                    />
+                  </div>
                 </div>
-                <div>
-                    <label className="block text-sm font-medium text-slate-600 mb-1">E-mail</label>
-                    <input
-                        type="email"
-                        name="email"
-                        value={formData.email}
-                        onChange={handleChange}
-                        className="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
+                <div className="mt-4">
+                    <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Email (Read Only)</label>
+                    <input 
+                      type="email" 
+                      disabled
+                      className="w-full p-3 bg-slate-100 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-500 cursor-not-allowed"
+                      value={email}
                     />
                 </div>
-            </div>
+              </div>
 
-            {/* Segurança */}
-            <div className="space-y-4 pt-4">
-                <h3 className="text-slate-800 font-bold flex items-center gap-2 border-b pb-2">
-                    <Lock size={18} className="text-blue-600"/> Segurança
+              <div className="pt-6 border-t border-slate-100 dark:border-slate-700">
+                <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-4 flex items-center gap-2">
+                    <Key size={20} className="text-blue-500"/> Security
                 </h3>
+                
+                <div className="mb-6 flex items-center justify-between bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg border border-blue-100 dark:border-blue-800">
+                    <div>
+                        <span className="block font-bold text-slate-800 dark:text-white text-sm">Two-Factor Authentication (2FA)</span>
+                        <span className="text-xs text-slate-500 dark:text-slate-400">Require email code on login</span>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer">
+                        <input type="checkbox" checked={twoFactorEnabled} onChange={(e) => setTwoFactorEnabled(e.target.checked)} className="sr-only peer" />
+                        <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer dark:bg-slate-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                    </label>
+                </div>
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                        <label className="block text-sm font-medium text-slate-600 mb-1">Nova Senha (Opcional)</label>
-                        <input
-                            type="password"
-                            name="password"
-                            placeholder="Deixe em branco para manter"
-                            value={formData.password}
-                            onChange={handleChange}
-                            className="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
+                        <label className="block text-xs font-bold text-slate-500 uppercase mb-1">New Password</label>
+                        <input 
+                        type="password" 
+                        placeholder="Leave blank to keep current"
+                        className="w-full p-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
                         />
                     </div>
                     <div>
-                        <label className="block text-sm font-medium text-slate-600 mb-1">Confirmar Senha</label>
-                        <input
-                            type="password"
-                            name="confirmPassword"
-                            placeholder="Confirme a nova senha"
-                            value={formData.confirmPassword}
-                            onChange={handleChange}
-                            className="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
+                        <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Confirm Password</label>
+                        <input 
+                        type="password" 
+                        placeholder="Confirm new password"
+                        className="w-full p-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                        value={confirmPassword}
+                        onChange={(e) => setConfirmPassword(e.target.value)}
                         />
                     </div>
                 </div>
-            </div>
+              </div>
 
-            {/* Ações */}
-            <div className="flex items-center justify-between pt-6 border-t border-slate-100">
+              <div className="pt-6 border-t border-slate-100 dark:border-slate-700 flex justify-end">
                 <button 
-                    type="button" 
-                    onClick={handleDeleteAccount}
-                    className="flex items-center gap-2 text-red-500 hover:text-red-700 text-sm font-medium transition"
+                  type="submit" 
+                  disabled={loading}
+                  className="bg-slate-900 hover:bg-slate-800 dark:bg-blue-600 dark:hover:bg-blue-700 text-white px-8 py-3 rounded-lg font-bold transition flex items-center gap-2 disabled:opacity-70 shadow-lg"
                 >
-                    <Trash2 size={16} /> Excluir Conta
+                  {loading ? <Loader2 className="animate-spin" /> : <><Save size={18} /> Save Changes</>}
                 </button>
+              </div>
 
-                <div className="mt-6 p-4 bg-slate-50 dark:bg-slate-800/50 rounded-lg border border-slate-200 dark:border-slate-700 flex items-center justify-between">
-    <div className="flex items-center gap-3">
-        <div className={`p-2 rounded-full ${formData.twoFactorEnabled ? 'bg-green-100 text-green-600' : 'bg-slate-200 text-slate-500'}`}>
-            <ShieldCheck size={24} />
-        </div>
-        <div>
-            <h4 className="text-sm font-bold text-slate-800 dark:text-white">Autenticação de Dois Fatores (2FA)</h4>
-            <p className="text-xs text-slate-500 dark:text-slate-400">Exige código por e-mail ao logar.</p>
-        </div>
-    </div>
-    <label className="relative inline-flex items-center cursor-pointer">
-        <input 
-            type="checkbox" 
-            checked={formData.twoFactorEnabled || false}
-            onChange={(e) => setFormData({...formData, twoFactorEnabled: e.target.checked})}
-            className="sr-only peer"
-        />
-        <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-    </label>
-</div>
-
-                <button 
-                    type="submit" 
-                    disabled={loading}
-                    className="bg-slate-900 text-white px-6 py-2.5 rounded-lg font-bold hover:bg-slate-800 transition flex items-center gap-2 shadow-lg shadow-slate-900/20"
-                >
-                    {loading ? 'Salvando...' : <><Save size={18}/> Salvar Alterações</>}
-                </button>
-            </div>
-
-          </form>
+            </form>
+          </div>
         </div>
       </div>
     </div>

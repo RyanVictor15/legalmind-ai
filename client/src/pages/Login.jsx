@@ -1,18 +1,21 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import api from '../services/api'; 
+import { useAuth } from '../context/AuthContext';
 import { Mail, Lock, Loader2, AlertCircle, Scale, ShieldCheck } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 export default function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [code, setCode] = useState(''); // Novo Estado para o Código
+  const [code, setCode] = useState(''); // New State for 2FA Code
   
-  const [step, setStep] = useState(1); // 1 = Senha, 2 = Código 2FA
+  const [step, setStep] = useState(1); // 1 = Password, 2 = 2FA Code
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  
   const navigate = useNavigate();
+  const { setUser } = useAuth(); // Access context to update user state
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -21,27 +24,38 @@ export default function Login() {
 
     try {
       if (step === 1) {
-        // PASSO 1: Enviar senha e pedir código
+        // STEP 1: Send password and check for 2FA
         const { data } = await api.post('/users/login', { email, password });
         
         if (data.requires2FA) {
-          setStep(2); // Muda a tela para pedir código
-          toast.success("Código enviado para seu e-mail!");
-        } 
+          setStep(2); // Switch to code input
+          toast.success("Security code sent to your email!");
+        } else {
+            // Direct Login Success
+            localStorage.setItem('userInfo', JSON.stringify(data));
+            api.defaults.headers.common['Authorization'] = `Bearer ${data.token}`;
+            setUser(data);
+            
+            toast.success(`Welcome back, ${data.firstName}!`);
+            navigate(data.isAdmin ? '/admin' : '/dashboard');
+        }
+
       } else {
-        // PASSO 2: Enviar código e pegar token
+        // STEP 2: Verify 2FA Code
         const { data } = await api.post('/users/verify-2fa', { email, code });
         
         localStorage.setItem('userInfo', JSON.stringify(data));
-        toast.success(`Bem-vindo, ${data.firstName}!`);
-        
-        if (data.isAdmin) window.location.href = '/admin';
-        else window.location.href = '/dashboard';
+        api.defaults.headers.common['Authorization'] = `Bearer ${data.token}`;
+        setUser(data);
+
+        toast.success(`Welcome, ${data.firstName}!`);
+        navigate(data.isAdmin ? '/admin' : '/dashboard');
       }
 
     } catch (err) {
       console.error(err);
-      const msg = err.response?.data?.message || "Erro de conexão.";
+      // Handle standardized backend error messages
+      const msg = err.response?.data?.message || "Connection error.";
       setError(msg);
       toast.error(msg);
     } finally {
@@ -60,10 +74,10 @@ export default function Login() {
             </div>
           </Link>
           <h2 className="text-3xl font-bold text-slate-800">
-            {step === 1 ? 'Bem-vindo de volta' : 'Verificação de Segurança'}
+            {step === 1 ? 'Welcome Back' : 'Security Check'}
           </h2>
           <p className="text-slate-500 mt-2">
-            {step === 1 ? 'Acesse sua conta LegalMind AI' : `Digite o código enviado para ${email}`}
+            {step === 1 ? 'Access your LegalMind AI account' : `Enter the code sent to ${email}`}
           </p>
         </div>
 
@@ -79,14 +93,14 @@ export default function Login() {
           {step === 1 && (
             <>
               <div>
-                <label className="block text-sm font-bold text-slate-700 mb-2">E-mail Corporativo</label>
+                <label className="block text-sm font-bold text-slate-700 mb-2">Corporate Email</label>
                 <div className="relative">
                   <Mail className="absolute left-3 top-3.5 text-slate-400" size={20} />
                   <input
                     type="email"
                     required
                     className="w-full pl-10 pr-4 py-3 rounded-lg border border-slate-200 focus:ring-2 focus:ring-blue-600 outline-none transition text-slate-800 bg-slate-50"
-                    placeholder="seu@email.com"
+                    placeholder="you@company.com"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                   />
@@ -94,7 +108,7 @@ export default function Login() {
               </div>
 
               <div>
-                <label className="block text-sm font-bold text-slate-700 mb-2">Senha</label>
+                <label className="block text-sm font-bold text-slate-700 mb-2">Password</label>
                 <div className="relative">
                   <Lock className="absolute left-3 top-3.5 text-slate-400" size={20} />
                   <input
@@ -107,7 +121,7 @@ export default function Login() {
                   />
                 </div>
                 <div className="flex justify-end mt-2">
-                    <Link to="/forgot-password" class="text-xs font-medium text-blue-600 hover:underline">Esqueceu a senha?</Link>
+                    <Link to="/forgot-password" class="text-xs font-medium text-blue-600 hover:underline">Forgot password?</Link>
                 </div>
               </div>
             </>
@@ -115,7 +129,7 @@ export default function Login() {
 
           {step === 2 && (
             <div className="animate-in fade-in slide-in-from-right-8 duration-300">
-                <label className="block text-sm font-bold text-slate-700 mb-2 text-center">Código de 6 Dígitos</label>
+                <label className="block text-sm font-bold text-slate-700 mb-2 text-center">6-Digit Code</label>
                 <input
                   type="text"
                   required
@@ -123,7 +137,7 @@ export default function Login() {
                   className="w-full text-center text-2xl tracking-widest py-4 rounded-lg border-2 border-blue-100 focus:border-blue-600 outline-none transition text-slate-800 font-mono"
                   placeholder="000000"
                   value={code}
-                  onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))} // Só números
+                  onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))} // Numbers only
                   autoFocus
                 />
             </div>
@@ -134,19 +148,19 @@ export default function Login() {
             disabled={loading}
             className="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold py-3.5 rounded-lg transition-all transform hover:scale-[1.02] flex justify-center items-center disabled:opacity-70 shadow-lg"
           >
-            {loading ? <Loader2 className="animate-spin mr-2" /> : (step === 1 ? "Continuar" : "Validar Acesso")}
+            {loading ? <Loader2 className="animate-spin mr-2" /> : (step === 1 ? "Continue" : "Verify Access")}
           </button>
         </form>
 
         {step === 1 && (
             <p className="mt-8 text-center text-slate-600 text-sm">
-            Não tem uma conta? <Link to="/register" className="text-blue-600 font-bold hover:underline">Registre-se grátis</Link>
+            Don't have an account? <Link to="/register" className="text-blue-600 font-bold hover:underline">Register for free</Link>
             </p>
         )}
         
         {step === 2 && (
             <button onClick={() => setStep(1)} className="mt-6 w-full text-center text-slate-500 text-sm hover:text-slate-800">
-                Voltar para Login
+                Back to Login
             </button>
         )}
       </div>

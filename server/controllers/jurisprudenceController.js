@@ -1,32 +1,40 @@
-// server/controllers/jurisprudenceController.js
 const Jurisprudence = require('../models/Jurisprudence');
 
-// Buscar Jurisprudência com Filtros
+// Get Jurisprudence with Filters
 const getJurisprudence = async (req, res) => {
   try {
     const { search, court, area } = req.query;
     let query = {};
 
-    // Filtro por Texto (Busca na Ementa, Tags e Número)
+    // Text Filter (Search in Summary, Tags, and Process Number)
     if (search) {
       query.$or = [
-        { summary: { $regex: search, $options: 'i' } }, // 'i' ignora maiúsculas
+        { summary: { $regex: search, $options: 'i' } }, // 'i' for case-insensitive
         { tags: { $regex: search, $options: 'i' } },
         { processNumber: { $regex: search, $options: 'i' } }
       ];
     }
 
-    // Filtros Específicos
+    // Specific Filters
     if (court) query.court = court;
     if (area) query.area = area;
 
-    // Busca, ordena por data (mais recente) e limita a 50 resultados
+    // Search, sort by date (newest first) and limit to 50 results
     const results = await Jurisprudence.find(query).sort({ date: -1 }).limit(50);
 
-    res.json(results);
+    // Standardized Response
+    res.json({
+      status: 'success',
+      count: results.length,
+      data: results
+    });
+
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Erro ao buscar jurisprudência' });
+    console.error('Jurisprudence Search Error:', error);
+    res.status(500).json({ 
+      status: 'error', 
+      message: 'Error fetching jurisprudence data.' 
+    });
   }
 };
 

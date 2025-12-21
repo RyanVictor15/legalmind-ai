@@ -4,11 +4,11 @@ import { Toaster } from 'react-hot-toast';
 import { AuthProvider } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
 
-// Componentes
-import ThemeToggle from './components/ThemeToggle'; // Importe o botão
+// Components
+import ThemeToggle from './components/ThemeToggle';
 import ProtectedRoute from './components/ProtectedRoute';
 
-// Páginas
+// Pages
 import Home from './pages/Home';
 import Login from './pages/Login';
 import Register from './pages/Register';
@@ -30,11 +30,12 @@ function App() {
       <AuthProvider>
         <ThemeProvider>
           <Toaster position="top-right" />
-          
-          {/* BOTÃO FLUTUANTE GLOBAL - Aparece em TODAS as telas */}
+
+          {/* GLOBAL FLOATING BUTTON - Appears on ALL screens */}
           <ThemeToggle floating={true} />
 
           <Routes>
+            {/* Public Routes */}
             <Route path="/" element={<Home />} />
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
@@ -43,13 +44,17 @@ function App() {
             <Route path="/terms" element={<Terms />} />
             <Route path="/privacy" element={<Privacy />} />
 
+            {/* Protected Routes */}
             <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
             <Route path="/history" element={<ProtectedRoute><History /></ProtectedRoute>} />
             <Route path="/jurisprudence" element={<ProtectedRoute><Jurisprudence /></ProtectedRoute>} />
             <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
             <Route path="/pricing" element={<ProtectedRoute><Pricing /></ProtectedRoute>} />
+            
+            {/* Admin Routes */}
             <Route path="/admin" element={<ProtectedRoute adminOnly={true}><AdminDashboard /></ProtectedRoute>} />
 
+            {/* Fallback */}
             <Route path="*" element={<NotFound />} />
           </Routes>
         </ThemeProvider>

@@ -1,34 +1,34 @@
 import React from 'react';
-import { ArrowLeft, Scale, ShieldAlert } from 'lucide-react';
+import { ArrowLeft } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 const Terms = () => {
   return (
-    <div className="min-h-screen bg-white font-inter text-slate-900">
-      <div className="border-b border-slate-200">
-        <div className="max-w-4xl mx-auto px-6 h-16 flex items-center justify-between">
-          <Link to="/" className="flex items-center gap-2 font-bold text-xl text-slate-800">
-            <Scale className="text-blue-600" /> LegalMind AI
-          </Link>
-          <Link to="/" className="text-sm font-medium text-slate-600 hover:text-blue-600 flex items-center gap-2">
-            <ArrowLeft size={16} /> Voltar para Home
-          </Link>
-        </div>
-      </div>
+    <div className="min-h-screen bg-white dark:bg-slate-900 font-inter py-12 px-4 md:px-20 transition-colors duration-300">
+      <div className="max-w-3xl mx-auto">
+        <Link to="/" className="inline-flex items-center text-blue-600 dark:text-blue-400 mb-8 font-bold hover:underline">
+            <ArrowLeft size={20} className="mr-2"/> Return Home
+        </Link>
+        
+        <h1 className="text-4xl font-bold text-slate-900 dark:text-white mb-8">Terms of Service</h1>
+        
+        <div className="prose prose-slate dark:prose-invert max-w-none">
+          <p>Last updated: December 2024</p>
 
-      <div className="max-w-3xl mx-auto px-6 py-12">
-        <h1 className="text-4xl font-extrabold tracking-tight text-slate-900 mb-8">Termos de Uso</h1>
-        <div className="prose prose-slate max-w-none space-y-8">
-          <div className="bg-blue-50 p-6 rounded-xl border border-blue-100 flex gap-4">
-            <ShieldAlert className="text-blue-600 shrink-0" size={24} />
-            <div>
-              <h3 className="text-blue-900 font-bold text-lg m-0">Isenção de Responsabilidade</h3>
-              <p className="text-blue-800 text-sm mt-2 leading-relaxed">
-                A IA não substitui um advogado. Verifique todas as informações.
-              </p>
-            </div>
-          </div>
-          <p>Ao usar o sistema, você concorda com nossos termos...</p>
+          <h3>1. Acceptance of Terms</h3>
+          <p>By accessing and using LegalMind AI, you accept and agree to be bound by the terms and provision of this agreement.</p>
+
+          <h3>2. Description of Service</h3>
+          <p>LegalMind AI provides AI-powered document analysis for legal professionals. The analysis provided is for informational purposes only and does not constitute legal advice.</p>
+
+          <h3>3. User Accounts</h3>
+          <p>You are responsible for maintaining the confidentiality of your account and password. You agree to accept responsibility for all activities that occur under your account.</p>
+
+          <h3>4. Data Privacy</h3>
+          <p>Your documents are processed securely and deleted from our servers after analysis, unless you explicitly choose to save them in your history.</p>
+
+          <h3>5. Limitation of Liability</h3>
+          <p>LegalMind AI shall not be liable for any indirect, incidental, special, consequential or punitive damages resulting from your use of the service.</p>
         </div>
       </div>
     </div>

@@ -5,54 +5,64 @@ const AuthContext = createContext();
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true); // Evita redirecionar antes de carregar
+  const [loading, setLoading] = useState(true); // Prevents redirect before loading
 
   useEffect(() => {
-    // Ao iniciar o site, verifica se já existe login salvo
+    // Check for saved login on startup
     const recoverUser = async () => {
       const storedUser = localStorage.getItem('userInfo');
 
       if (storedUser) {
-        const parsedUser = JSON.parse(storedUser);
-        setUser(parsedUser);
-        // Configura o token no Axios para todas as chamadas futuras
-        api.defaults.headers.common['Authorization'] = `Bearer ${parsedUser.token}`;
+        try {
+          const parsedUser = JSON.parse(storedUser);
+          setUser(parsedUser);
+          // Set Axios token for all future requests
+          api.defaults.headers.common['Authorization'] = `Bearer ${parsedUser.token}`;
+        } catch (error) {
+          console.error('Failed to parse user info:', error);
+          localStorage.removeItem('userInfo');
+        }
       }
       
-      setLoading(false); // Terminou de carregar
+      setLoading(false); // Loading finished
     };
 
     recoverUser();
   }, []);
 
   const login = async (email, password) => {
-    // Faz o login na API
+    // Call Login API
+    // Note: Backend returns user object directly on success based on current controller
     const { data } = await api.post('/users/login', { email, password });
 
-    // Se der certo, salva no estado e no armazenamento local
-    localStorage.setItem('userInfo', JSON.stringify(data));
-    api.defaults.headers.common['Authorization'] = `Bearer ${data.token}`;
-    setUser(data);
+    // Success: Save to state and local storage
+    if (data.token) {
+        localStorage.setItem('userInfo', JSON.stringify(data));
+        api.defaults.headers.common['Authorization'] = `Bearer ${data.token}`;
+        setUser(data);
+    }
+    return data; // Return data to handle 2FA logic in component
   };
 
   const logout = () => {
     localStorage.removeItem('userInfo');
-    api.defaults.headers.common['Authorization'] = undefined;
+    delete api.defaults.headers.common['Authorization'];
     setUser(null);
+    // Optional: Navigate to login is handled by ProtectedRoute or component logic
   };
 
   return (
-    <AuthContext.Provider value={{ authenticated: !!user, user, loading, login, logout }}>
+    <AuthContext.Provider value={{ authenticated: !!user, user, loading, login, logout, setUser }}>
       {children}
     </AuthContext.Provider>
   );
 };
 
-// Hook personalizado para usar a autenticação em qualquer lugar
+// Custom hook to use auth anywhere
 export const useAuth = () => {
   const context = useContext(AuthContext);
   if (!context) {
-    throw new Error('useAuth deve ser usado dentro de um AuthProvider');
+    throw new Error('useAuth must be used within an AuthProvider');
   }
   return context;
 };

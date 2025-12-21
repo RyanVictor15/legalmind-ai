@@ -1,162 +1,159 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { BarChart2, FileText, Shield, Search, ChevronRight, BookOpen, LogOut, User, Copy, Check } from 'lucide-react';
+import React, { useState } from 'react';
 import api from '../services/api';
-import toast from 'react-hot-toast';
+import { Search, Scale, BookOpen, Filter, Loader2, ArrowRight } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 
 const Jurisprudence = () => {
-  const navigate = useNavigate();
-  const [searchTerm, setSearchTerm] = useState('');
-  const [cases, setCases] = useState([]);
+  const [query, setQuery] = useState('');
+  const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [copiedId, setCopiedId] = useState(null); // Para mostrar feedback visual de cópia
+  const [searched, setSearched] = useState(false);
+  const navigate = useNavigate();
 
-  // Busca inicial e Busca por termo
-  useEffect(() => {
-    // Debounce para não buscar a cada letra digitada (espera 500ms)
-    const delayDebounceFn = setTimeout(() => {
-      fetchCases();
-    }, 500);
+  // Filters
+  const [court, setCourt] = useState('');
+  const [area, setArea] = useState('');
 
-    return () => clearTimeout(delayDebounceFn);
-  }, [searchTerm]);
-
-  const fetchCases = async () => {
+  const handleSearch = async (e) => {
+    e.preventDefault();
     setLoading(true);
+    setSearched(true);
+    
     try {
-      // Passa o termo de busca para o backend
-      const { data } = await api.get(`/jurisprudence?search=${searchTerm}`);
-      setCases(data);
+      const params = { search: query };
+      if (court) params.court = court;
+      if (area) params.area = area;
+
+      const { data } = await api.get('/jurisprudence', { params });
+      // Standardized response: { status: 'success', data: [...] }
+      setResults(data.data || []);
     } catch (error) {
-      console.error("Erro na busca", error);
+      console.error(error);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleLogout = () => {
-    localStorage.removeItem('userInfo');
-    navigate('/');
-  };
-
-  const copyToClipboard = (text, id) => {
-    navigator.clipboard.writeText(text);
-    setCopiedId(id);
-    toast.success("Ementa copiada com sucesso!");
-    setTimeout(() => setCopiedId(null), 2000); // Reseta o ícone depois de 2s
-  };
-
   return (
-    <div className="flex min-h-screen bg-slate-50 font-inter">
-      {/* SIDEBAR */}
-      <aside className="w-64 bg-slate-900 text-white hidden md:flex flex-col fixed h-full z-10">
-        <div className="p-6 border-b border-slate-800">
-          <h1 className="text-xl font-bold tracking-tight">Legal<span className="text-blue-500">Mind</span> AI</h1>
-          <p className="text-xs text-slate-400 mt-1">Enterprise Edition</p>
-        </div>
-        <nav className="flex-1 p-4 space-y-2">
-          <div onClick={() => navigate('/dashboard')} className="flex items-center gap-3 p-3 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg cursor-pointer transition">
-            <BarChart2 size={20} /> <span>Dashboard</span>
-          </div>
-          <div onClick={() => navigate('/history')} className="flex items-center gap-3 p-3 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg cursor-pointer transition">
-            <FileText size={20} /> <span>Meus Processos</span>
-          </div>
-          <div className="flex items-center gap-3 p-3 bg-blue-600 rounded-lg cursor-pointer transition shadow-lg shadow-blue-900/50">
-            <Shield size={20} /> <span className="font-medium">Jurisprudência</span>
-          </div>
-          <div onClick={() => navigate('/profile')} className="flex items-center gap-3 p-3 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg cursor-pointer transition">
-            <User size={20} /> <span>Meu Perfil</span>
-          </div>
-        </nav>
-        <div className="p-4 border-t border-slate-800">
-          <button onClick={handleLogout} className="flex items-center gap-2 text-slate-400 hover:text-red-400 transition text-sm">
-            <LogOut size={16} /> Sair do Sistema
-          </button>
-        </div>
-      </aside>
-
-      {/* ÁREA PRINCIPAL */}
-      <main className="flex-1 md:ml-64 p-8">
-        <header className="mb-8">
-          <h2 className="text-2xl font-bold text-slate-800">Banco de Jurisprudência</h2>
-          <p className="text-slate-500">Pesquise precedentes em nossa base proprietária de alta performance.</p>
-        </header>
-
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 mb-8 sticky top-4 z-20">
-            <div className="relative">
-                <Search className="absolute left-4 top-3.5 text-slate-400" size={20}/>
-                <input 
-                    type="text" 
-                    placeholder="Digite palavras-chave (ex: Danos Morais, Inscrição Indevida, STJ...)" 
-                    className="w-full pl-12 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-700"
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                />
-            </div>
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-900 p-8 font-inter transition-colors duration-300">
+      <div className="max-w-6xl mx-auto">
+        
+        {/* HEADER */}
+        <div className="mb-10 text-center">
+            <h1 className="text-4xl font-bold text-slate-900 dark:text-white mb-4 flex justify-center items-center gap-3">
+                <Scale className="text-blue-600" size={40}/> Jurisprudence Search
+            </h1>
+            <p className="text-slate-500 dark:text-slate-400 text-lg">
+                Access over 50 million updated decisions from unified courts.
+            </p>
         </div>
 
-        <div className="space-y-4">
-            {loading ? (
-                <div className="text-center py-10 text-slate-400">Carregando base jurídica...</div>
-            ) : cases.length === 0 ? (
-                <div className="text-center py-12 text-slate-400">
-                    Nenhum resultado encontrado para "{searchTerm}".
+        {/* SEARCH BAR */}
+        <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-lg border border-slate-200 dark:border-slate-700 mb-10">
+            <form onSubmit={handleSearch} className="space-y-4">
+                <div className="relative">
+                    <Search className="absolute left-4 top-4 text-slate-400" size={24}/>
+                    <input 
+                        type="text" 
+                        className="w-full pl-14 pr-4 py-4 text-lg bg-slate-50 dark:bg-slate-900 border-2 border-slate-100 dark:border-slate-700 rounded-xl focus:border-blue-500 outline-none transition text-slate-800 dark:text-white"
+                        placeholder="Search by keywords, process number or topic (e.g., 'Moral Damages Flight Delay')"
+                        value={query}
+                        onChange={(e) => setQuery(e.target.value)}
+                    />
                 </div>
-            ) : (
-                cases.map(item => (
-                    <div key={item._id} className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 hover:shadow-md transition group relative">
-                        {/* HEADER DO CARD */}
-                        <div className="flex justify-between items-start mb-3">
-                            <div className="flex gap-2">
-                                <span className={`px-3 py-1 rounded text-xs font-bold uppercase tracking-wider ${
-                                    item.court === 'STF' ? 'bg-yellow-100 text-yellow-800' :
-                                    item.court === 'STJ' ? 'bg-red-100 text-red-800' :
-                                    'bg-slate-100 text-slate-600'
-                                }`}>
-                                    {item.court}
-                                </span>
-                                <span className="bg-blue-50 text-blue-700 px-3 py-1 rounded text-xs font-bold uppercase tracking-wider">
-                                    {item.area}
+                
+                <div className="flex flex-col md:flex-row gap-4">
+                    <select 
+                        className="flex-1 p-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-600 dark:text-slate-300 outline-none"
+                        value={court}
+                        onChange={(e) => setCourt(e.target.value)}
+                    >
+                        <option value="">All Courts</option>
+                        <option value="STF">STF (Supreme Court)</option>
+                        <option value="STJ">STJ (Superior Court)</option>
+                        <option value="TJSP">TJSP (São Paulo)</option>
+                        <option value="TJRJ">TJRJ (Rio de Janeiro)</option>
+                    </select>
+
+                    <select 
+                        className="flex-1 p-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-600 dark:text-slate-300 outline-none"
+                        value={area}
+                        onChange={(e) => setArea(e.target.value)}
+                    >
+                        <option value="">All Areas</option>
+                        <option value="Civil">Civil Law</option>
+                        <option value="Penal">Criminal Law</option>
+                        <option value="Trabalhista">Labor Law</option>
+                        <option value="Tributário">Tax Law</option>
+                    </select>
+
+                    <button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-3 rounded-lg font-bold transition flex items-center justify-center gap-2 shadow-lg">
+                        {loading ? <Loader2 className="animate-spin"/> : 'Search Precedents'}
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        {/* RESULTS */}
+        <div className="space-y-6">
+            {loading ? (
+                <div className="text-center py-20">
+                    <Loader2 size={48} className="animate-spin text-blue-500 mx-auto"/>
+                    <p className="text-slate-500 mt-4">Searching database...</p>
+                </div>
+            ) : results.length > 0 ? (
+                <>
+                    <h3 className="text-slate-500 dark:text-slate-400 font-bold uppercase text-xs tracking-wider mb-4">
+                        {results.length} Decisions Found
+                    </h3>
+                    {results.map((item) => (
+                        <div key={item._id} className="bg-white dark:bg-slate-800 p-6 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 hover:shadow-md transition group">
+                            <div className="flex justify-between items-start mb-3">
+                                <div>
+                                    <span className="bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 text-xs font-bold px-2 py-1 rounded mr-2">
+                                        {item.court}
+                                    </span>
+                                    <span className="text-slate-500 dark:text-slate-400 text-sm font-mono">
+                                        {item.processNumber}
+                                    </span>
+                                </div>
+                                <span className="text-slate-400 dark:text-slate-500 text-xs">
+                                    {new Date(item.date).toLocaleDateString()}
                                 </span>
                             </div>
-                            <span className="text-slate-400 text-sm">
-                                {new Date(item.date).toLocaleDateString('pt-BR')}
-                            </span>
-                        </div>
+                            
+                            <h4 className="text-lg font-bold text-slate-800 dark:text-white mb-2 group-hover:text-blue-600 transition">
+                                {item.area} Decision
+                            </h4>
+                            
+                            <p className="text-slate-600 dark:text-slate-300 text-sm leading-relaxed mb-4 line-clamp-3">
+                                {item.summary}
+                            </p>
 
-                        {/* CONTEÚDO */}
-                        <h3 className="text-lg font-bold text-slate-800 mb-2">{item.processNumber}</h3>
-                        <p className="text-slate-600 mb-4 text-sm leading-relaxed text-justify bg-slate-50 p-4 rounded border border-slate-100 font-mono">
-                            {item.summary}
-                        </p>
-
-                        {/* FOOTER DO CARD */}
-                        <div className="flex justify-between items-center mt-4">
-                            <div className="flex flex-wrap gap-2">
+                            <div className="flex flex-wrap gap-2 mt-3">
                                 {item.tags.map(tag => (
-                                    <span key={tag} className="flex items-center gap-1 text-xs font-medium text-slate-500 bg-white border border-slate-200 px-2 py-1 rounded">
-                                        <BookOpen size={10}/> {tag}
+                                    <span key={tag} className="text-xs bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 px-2 py-1 rounded-full">
+                                        #{tag}
                                     </span>
                                 ))}
                             </div>
-                            
-                            <button 
-                                onClick={() => copyToClipboard(item.summary, item._id)}
-                                className={`flex items-center gap-2 px-4 py-2 rounded-lg font-bold text-sm transition-all ${
-                                    copiedId === item._id 
-                                    ? 'bg-green-100 text-green-700' 
-                                    : 'bg-slate-100 text-slate-600 hover:bg-blue-600 hover:text-white'
-                                }`}
-                            >
-                                {copiedId === item._id ? <Check size={16}/> : <Copy size={16}/>}
-                                {copiedId === item._id ? 'Copiado!' : 'Copiar Ementa'}
-                            </button>
                         </div>
-                    </div>
-                ))
-            )}
+                    ))}
+                </>
+            ) : searched ? (
+                <div className="text-center py-20 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 border-dashed">
+                    <BookOpen size={48} className="mx-auto text-slate-300 mb-4"/>
+                    <h3 className="text-lg font-medium text-slate-600 dark:text-slate-400">No results found</h3>
+                    <p className="text-slate-400 dark:text-slate-500 text-sm">Try using broader keywords or clearing filters.</p>
+                </div>
+            ) : null}
         </div>
-      </main>
+        
+        <button onClick={() => navigate('/dashboard')} className="fixed bottom-8 right-8 bg-slate-900 dark:bg-blue-600 text-white p-4 rounded-full shadow-2xl hover:scale-105 transition z-50">
+            <ArrowRight size={24} />
+        </button>
+
+      </div>
     </div>
   );
 };
