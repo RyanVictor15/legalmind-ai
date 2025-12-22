@@ -3,11 +3,11 @@ const router = express.Router();
 const { createCheckoutSession, handleWebhook } = require('../controllers/paymentController');
 const { protect } = require('../middleware/authMiddleware');
 
-// Rota de Checkout (Protegida)
+// Protected route (User must be logged in to pay)
 router.post('/create-checkout-session', protect, createCheckoutSession);
 
-// Rota de Webhook (Pública, mas validada por assinatura)
-// Nota: O parser do corpo deve ser tratado no index.js para esta rota específica
-router.post('/webhook', express.raw({ type: 'application/json' }), handleWebhook);
+// Public route (Stripe calls this, signature validation handles security)
+// Note: The raw body parsing is handled in index.js for this specific path
+router.post('/webhook', handleWebhook);
 
 module.exports = router;
