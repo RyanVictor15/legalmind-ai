@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
-import rehypeSanitize from 'rehype-sanitize'; // SECURITY: Prevents XSS
+import rehypeSanitize from 'rehype-sanitize';
 import { useDropzone } from 'react-dropzone';
 import { Chart as ChartJS, ArcElement, Tooltip, Legend, CategoryScale, LinearScale, BarElement, Title } from 'chart.js';
 import { Doughnut } from 'react-chartjs-2';
@@ -8,9 +8,8 @@ import api from '../services/api';
 import { LogOut, FileText, BarChart2, UploadCloud, User, Zap, Menu, X } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import ThemeToggle from '../components/ThemeToggle';
 
-// Chart Registration
+// Registro de Charts
 ChartJS.register(ArcElement, Tooltip, Legend, CategoryScale, LinearScale, BarElement, Title);
 
 const Dashboard = () => {
@@ -25,7 +24,6 @@ const Dashboard = () => {
   useEffect(() => {
     if (location.state && location.state.document) {
       setResult(location.state.document);
-      // Clear state to prevent loop
       window.history.replaceState({}, document.title);
     }
   }, [location]);
@@ -34,7 +32,7 @@ const Dashboard = () => {
     const file = acceptedFiles[0];
     const MAX_SIZE = 10 * 1024 * 1024; // 10MB
     if (file.size > MAX_SIZE) {
-      alert("⚠️ File too large! Max size is 10MB.");
+      alert("⚠️ Arquivo muito grande! Limite de 10MB.");
       return; 
     }
 
@@ -48,8 +46,8 @@ const Dashboard = () => {
       });
       setResult(data.data); 
     } catch (error) {
-      console.error("Analysis Error", error);
-      alert("Error processing document. Please try again.");
+      console.error("Erro na análise", error);
+      alert("Erro ao processar documento. Tente novamente.");
     } finally {
       setLoading(false);
     }
@@ -60,9 +58,8 @@ const Dashboard = () => {
     accept: { 'text/plain': ['.txt'], 'application/pdf': ['.pdf'] } 
   });
 
-  // Safe access for charts
   const chartData = result ? {
-    labels: ['Positive', 'Negative', 'Neutral'],
+    labels: ['Positivo', 'Negativo', 'Neutro'],
     datasets: [{
       data: [
         result.keywords?.positive?.length || 3,
@@ -80,7 +77,7 @@ const Dashboard = () => {
       return 'bg-red-500 shadow-[0_0_15px_rgba(239,68,68,0.5)]'; 
   };
 
-  const analysisContent = result?.analysis || result?.aiSummary || "Summary unavailable.";
+  const analysisContent = result?.analysis || result?.aiSummary || "Resumo indisponível.";
   const riskScore = result?.riskAnalysis || 75;
 
   return (
@@ -107,16 +104,16 @@ const Dashboard = () => {
             <BarChart2 size={20} /> <span className="font-medium">Dashboard</span>
           </div>
           <div onClick={() => navigate('/history')} className="flex items-center gap-3 p-3 text-slate-400 hover:text-white hover:bg-slate-800/50 rounded-lg cursor-pointer transition">
-            <FileText size={20} /> <span>My Cases</span>
+            <FileText size={20} /> <span>Meus Casos</span>
           </div>
           <div onClick={() => navigate('/profile')} className="flex items-center gap-3 p-3 text-slate-400 hover:text-white hover:bg-slate-800/50 rounded-lg cursor-pointer transition">
-            <User size={20} /> <span>My Profile</span>
+            <User size={20} /> <span>Meu Perfil</span>
           </div>
         </nav>
 
         <div className="p-4 border-t border-slate-800 mt-auto">
           <button onClick={logout} className="flex items-center gap-2 text-slate-500 hover:text-red-400 transition text-sm w-full font-medium">
-            <LogOut size={16} /> Logout
+            <LogOut size={16} /> Sair
           </button>
         </div>
       </aside>
@@ -132,16 +129,16 @@ const Dashboard = () => {
             </button>
             <div>
               <h2 className="text-xl md:text-2xl font-bold text-slate-800 dark:text-white">
-                Hello, Dr. {user?.lastName || 'Advocate'}
+                Olá, Dr(a). {user?.lastName || 'Advogado'}
               </h2>
               <p className="text-sm text-slate-500 dark:text-slate-400 hidden md:block">
-                Smart Control Panel
+                Painel de Controle Inteligente
               </p>
             </div>
           </div>
           
           <div className="flex items-center gap-4">
-             <ThemeToggle />
+             {/* Theme Toggle é Global no App.jsx, não precisa repetir aqui */}
 
              {user?.isPro ? (
                 <span className="hidden md:flex bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 px-4 py-2 rounded-full text-sm font-bold items-center gap-2">
@@ -163,11 +160,11 @@ const Dashboard = () => {
               <div className="flex flex-col items-center gap-5">
                 <div className="bg-slate-100 dark:bg-slate-900 p-5 rounded-full text-blue-600 dark:text-blue-500"><UploadCloud size={32} /></div>
                 <div>
-                  <p className="text-lg font-medium text-slate-700 dark:text-white">Drag your Petition or Document here</p>
-                  <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Supports PDF & TXT (Max 10MB)</p>
+                  <p className="text-lg font-medium text-slate-700 dark:text-white">Arraste sua Petição ou Documento aqui</p>
+                  <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Suporta PDF & TXT (Max 10MB)</p>
                 </div>
                 <button className="bg-slate-900 dark:bg-blue-600 text-white px-8 py-3 rounded-lg font-bold hover:opacity-90 transition">
-                  {loading ? "Processing..." : "Select File"}
+                  {loading ? "Processando IA..." : "Selecionar Arquivo"}
                 </button>
               </div>
             </div>
@@ -177,19 +174,19 @@ const Dashboard = () => {
              {/* RESULT HEADER */}
              <div className="flex justify-between items-center bg-white dark:bg-slate-800 p-6 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700">
                 <div>
-                    <h3 className="text-lg font-bold text-slate-800 dark:text-white">{result.metadata?.filename || "Analyzed Document"}</h3>
-                    <span className="text-xs text-blue-600 dark:text-blue-400 uppercase font-bold">Report Generated</span>
+                    <h3 className="text-lg font-bold text-slate-800 dark:text-white">{result.metadata?.filename || "Documento Analisado"}</h3>
+                    <span className="text-xs text-blue-600 dark:text-blue-400 uppercase font-bold">Relatório Gerado</span>
                 </div>
-                <button onClick={() => setResult(null)} className="text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white underline">New Analysis</button>
+                <button onClick={() => setResult(null)} className="text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white underline">Nova Análise</button>
              </div>
 
              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 
-                {/* AI TEXT ANALYSIS - NOW SANITIZED */}
+                {/* AI TEXT ANALYSIS */}
                 <div className="lg:col-span-2 space-y-6">
                     <div className="bg-white dark:bg-slate-800 p-6 md:p-8 rounded-xl shadow-sm border-l-4 border-blue-600 dark:border-blue-500 transition-colors duration-300">
                         <h4 className="flex items-center gap-2 text-slate-800 dark:text-white font-bold text-lg mb-4 border-b border-slate-100 dark:border-slate-700 pb-3">
-                            <FileText size={20} className="text-blue-600 dark:text-blue-500"/> Legal Analysis
+                            <FileText size={20} className="text-blue-600 dark:text-blue-500"/> Análise Jurídica
                         </h4>
                         
                         <div className="text-slate-600 dark:text-slate-300 leading-relaxed text-justify mb-6 prose prose-slate dark:prose-invert max-w-none">
@@ -204,7 +201,7 @@ const Dashboard = () => {
                 <div className="space-y-6">
                     <div className="bg-white dark:bg-slate-800 p-6 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 transition-colors duration-300">
                         <h4 className="flex items-center justify-center gap-2 text-slate-800 dark:text-white font-bold mb-4">
-                            <Zap size={18} className="text-yellow-500"/> Success Probability
+                            <Zap size={18} className="text-yellow-500"/> Probabilidade de Êxito
                         </h4>
                         <div className="flex justify-center items-end gap-1 mb-2">
                             <span className="text-5xl font-bold text-slate-800 dark:text-white">{riskScore}%</span>
@@ -215,7 +212,7 @@ const Dashboard = () => {
                     </div>
 
                     <div className="bg-white dark:bg-slate-800 p-6 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 transition-colors duration-300">
-                        <h4 className="text-slate-800 dark:text-white font-bold mb-4 text-center">Emotional Tone</h4>
+                        <h4 className="text-slate-800 dark:text-white font-bold mb-4 text-center">Tom Emocional</h4>
                         <div className="h-48 relative">
                             <Doughnut data={chartData} options={{ maintainAspectRatio: false }} />
                         </div>

@@ -1,11 +1,10 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { Scale, Shield, Zap, BarChart3, ArrowRight } from 'lucide-react';
-import ThemeToggle from '../components/ThemeToggle'; // <--- O BOTÃO
+import ThemeToggle from '../components/ThemeToggle'; 
 
 const Home = () => {
   return (
-    // Lógica Híbrida: bg-white no claro, bg-slate-950 no escuro
     <div className="min-h-screen bg-white dark:bg-slate-950 font-inter text-slate-900 dark:text-white transition-colors duration-300 selection:bg-blue-500 selection:text-white">
       
       {/* NAVBAR */}
@@ -23,7 +22,6 @@ const Home = () => {
               <a href="#features" className="text-sm font-medium text-slate-600 dark:text-slate-300 hover:text-blue-600 dark:hover:text-white transition">Recursos</a>
               <Link to="/pricing" className="text-sm font-medium text-slate-600 dark:text-slate-300 hover:text-blue-600 dark:hover:text-white transition">Preços</Link>
               
-              {/* AQUI ESTÁ O BOTÃO DE TEMA */}
               <ThemeToggle /> 
 
               <Link to="/login" className="text-sm font-medium text-slate-900 dark:text-white hover:text-blue-600 transition">Entrar</Link>
@@ -37,7 +35,6 @@ const Home = () => {
 
       {/* HERO SECTION */}
       <div className="relative pt-32 pb-20 lg:pt-48 lg:pb-32 overflow-hidden">
-        {/* Glow só aparece no modo escuro */}
         <div className="hidden dark:block absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[500px] bg-blue-600/20 rounded-full blur-[120px] -z-10"></div>
 
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 text-center">
@@ -117,4 +114,4 @@ const Home = () => {
   );
 };
 
-export default Home;
+export default Home;  
