@@ -12,10 +12,11 @@ const AdminDashboard = () => {
     const fetchStats = async () => {
       try {
         const { data } = await api.get('/admin/stats');
+        // Backend retorna: { status: 'success', data: { users: {...}, documents: {...}, latestUsers: [...] } }
         setStats(data.data); 
       } catch (error) {
         console.error("Erro Admin", error);
-        navigate('/dashboard'); 
+        navigate('/dashboard'); // Chuta não-admins
       } finally {
         setLoading(false);
       }
