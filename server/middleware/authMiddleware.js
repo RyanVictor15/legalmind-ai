@@ -5,16 +5,17 @@ const protect = async (req, res, next) => {
   let token;
 
   // Check for Bearer token in headers
-  if (
-    req.headers.authorization &&
-    req.headers.authorization.startsWith('Bearer')
-  ) {
-    try {
-      // Get token from header
-      token = req.headers.authorization.split('')[1];
-
-      // Verify token
-      const decoded = jwt.verify(token, process.env.JWT_SECRET);
+  // ...
+if (
+  req.headers.authorization &&
+  req.headers.authorization.startsWith('Bearer')
+) {
+  try {
+    // CORREÇÃO: Adicione um ESPAÇO dentro das aspas do split
+    token = req.headers.authorization.split(' ')[1]; 
+    
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+// ...
 
       // Get user from the token (exclude password)
       req.user = await User.findById(decoded.id).select('-password');

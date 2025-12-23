@@ -1,5 +1,6 @@
-import ReactMarkdown from 'react-markdown';
 import React, { useState, useEffect } from 'react';
+import ReactMarkdown from 'react-markdown';
+import rehypeSanitize from 'rehype-sanitize'; // SECURITY: Prevents XSS
 import { useDropzone } from 'react-dropzone';
 import { Chart as ChartJS, ArcElement, Tooltip, Legend, CategoryScale, LinearScale, BarElement, Title } from 'chart.js';
 import { Doughnut } from 'react-chartjs-2';
@@ -38,14 +39,13 @@ const Dashboard = () => {
     }
 
     const formData = new FormData();
-    formData.append('file', file); // Changed 'document' to 'file' to match backend multer
+    formData.append('file', file);
 
     setLoading(true);
     try {
       const { data } = await api.post('/analyze', formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
-      // Backend returns { status: 'success', data: { analysis: ..., metadata: ... } }
       setResult(data.data); 
     } catch (error) {
       console.error("Analysis Error", error);
@@ -65,7 +65,7 @@ const Dashboard = () => {
     labels: ['Positive', 'Negative', 'Neutral'],
     datasets: [{
       data: [
-        result.keywords?.positive?.length || 3, // Mock data if keywords missing
+        result.keywords?.positive?.length || 3,
         result.keywords?.negative?.length || 1,
         2
       ],
@@ -80,9 +80,8 @@ const Dashboard = () => {
       return 'bg-red-500 shadow-[0_0_15px_rgba(239,68,68,0.5)]'; 
   };
 
-  // Extract analysis text safely
   const analysisContent = result?.analysis || result?.aiSummary || "Summary unavailable.";
-  const riskScore = result?.riskAnalysis || 75; // Mock score if AI doesn't return number
+  const riskScore = result?.riskAnalysis || 75;
 
   return (
     <div className="flex min-h-screen bg-slate-50 dark:bg-slate-900 font-inter relative overflow-hidden text-slate-900 dark:text-slate-100 transition-colors duration-300">
@@ -186,7 +185,7 @@ const Dashboard = () => {
 
              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 
-                {/* AI TEXT ANALYSIS */}
+                {/* AI TEXT ANALYSIS - NOW SANITIZED */}
                 <div className="lg:col-span-2 space-y-6">
                     <div className="bg-white dark:bg-slate-800 p-6 md:p-8 rounded-xl shadow-sm border-l-4 border-blue-600 dark:border-blue-500 transition-colors duration-300">
                         <h4 className="flex items-center gap-2 text-slate-800 dark:text-white font-bold text-lg mb-4 border-b border-slate-100 dark:border-slate-700 pb-3">
@@ -194,7 +193,9 @@ const Dashboard = () => {
                         </h4>
                         
                         <div className="text-slate-600 dark:text-slate-300 leading-relaxed text-justify mb-6 prose prose-slate dark:prose-invert max-w-none">
-                            <ReactMarkdown>{analysisContent}</ReactMarkdown>
+                            <ReactMarkdown rehypePlugins={[rehypeSanitize]}>
+                              {analysisContent}
+                            </ReactMarkdown>
                         </div>
                     </div>
                 </div>

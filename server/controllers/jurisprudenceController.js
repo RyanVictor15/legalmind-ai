@@ -1,28 +1,35 @@
 const Jurisprudence = require('../models/Jurisprudence');
+const escapeRegex = require('../utils/escapeRegex');
 
-// Get Jurisprudence with Filters
+// @desc    Get Jurisprudence with Safe Search
+// @route   GET /api/jurisprudence
+// @access  Protected
 const getJurisprudence = async (req, res) => {
   try {
     const { search, court, area } = req.query;
     let query = {};
 
-    // Text Filter (Search in Summary, Tags, and Process Number)
-    if (search) {
+    // 1. SECURITY FIX: Check if 'search' exists AND is a string
+    // Prevents Parameter Pollution attacks (passing objects like ?search[$ne]=...)
+    if (search && typeof search === 'string') {
+      const cleanSearch = escapeRegex(search);
       query.$or = [
-        { summary: { $regex: search, $options: 'i' } }, // 'i' for case-insensitive
-        { tags: { $regex: search, $options: 'i' } },
-        { processNumber: { $regex: search, $options: 'i' } }
+        { summary: { $regex: cleanSearch, $options: 'i' } },
+        { tags: { $regex: cleanSearch, $options: 'i' } },
+        { processNumber: { $regex: cleanSearch, $options: 'i' } }
       ];
     }
 
-    // Specific Filters
+    // 2. Filters
     if (court) query.court = court;
     if (area) query.area = area;
 
-    // Search, sort by date (newest first) and limit to 50 results
-    const results = await Jurisprudence.find(query).sort({ date: -1 }).limit(50);
+    // 3. Optimization
+    const results = await Jurisprudence.find(query)
+      .sort({ date: -1 })
+      .limit(50)
+      .select('court processNumber summary area date tags');
 
-    // Standardized Response
     res.json({
       status: 'success',
       count: results.length,

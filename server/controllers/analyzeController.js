@@ -1,11 +1,11 @@
 const fs = require('fs');
 const pdf = require('pdf-parse');
-const { GoogleGenerativeAI } = require('@google/generative-ai');
+const Document = require('../models/Document');
+const { generateLegalAnalysis } = require('../services/aiService');
 
-// Initialize Gemini AI
-// Security: API Key must be in .env
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-
+// @desc    Analyze Document with AI
+// @route   POST /api/analyze
+// @access  Protected
 const analyzeDocument = async (req, res) => {
   let filePath = null;
 
@@ -14,76 +14,57 @@ const analyzeDocument = async (req, res) => {
     if (!req.file) {
       return res.status(400).json({ status: 'error', message: 'No file uploaded.' });
     }
-
     filePath = req.file.path;
-    let extractedText = '';
 
-    // 2. Extract Text based on Mime Type
+    // 2. Extract Text
+    let extractedText = '';
     if (req.file.mimetype === 'application/pdf') {
       const dataBuffer = fs.readFileSync(filePath);
       const data = await pdf(dataBuffer);
       extractedText = data.text;
-    } else if (req.file.mimetype === 'text/plain') {
-      extractedText = fs.readFileSync(filePath, 'utf8');
     } else {
-      // Fallback for unsupported types that bypassed multer (rare)
-      throw new Error('Unsupported file type processing.');
+      extractedText = fs.readFileSync(filePath, 'utf8');
     }
 
-    if (!extractedText || extractedText.trim().length === 0) {
-      throw new Error('Extracted text is empty.');
+    if (!extractedText.trim()) {
+      throw new Error('Document appears to be empty or unreadable.');
     }
 
-    // 3. AI Analysis (Gemini)
-    // Use a lighter model for speed, or Pro for reasoning
-    const model = genAI.getGenerativeModel({ model: "gemini-pro" });
+    // 3. Call AI Service (Business Logic)
+    const analysisResult = await generateLegalAnalysis(extractedText, req.file.originalname);
 
-    const prompt = `
-      You are a specialized legal assistant (LegalMind AI).
-      Analyze the following legal document text and provide a structured summary in JSON format:
-      1. Case Summary (Brief overview)
-      2. Key Arguments (List of main points)
-      3. Success Probability (Estimate 0-100% based on text tone/facts)
-      4. Recommended Actions (Bullet points)
+    // 4. Save to Database (Persistence)
+    const newDoc = await Document.create({
+      userId: req.user._id,
+      filename: req.file.originalname,
+      filePath: filePath, // Keeping local path for history download
+      originalText: extractedText.substring(0, 1000), // Save only preview
       
-      Document Text:
-      "${extractedText.substring(0, 10000)}" 
-      // Truncated to 10k chars to avoid token limits
-    `;
+      // AI Data
+      aiSummary: analysisResult.summary,
+      riskAnalysis: analysisResult.riskScore,
+      verdict: analysisResult.verdict,
+      keywords: analysisResult.keywords,
+      strategicAdvice: analysisResult.strategicAdvice
+    });
 
-    const result = await model.generateContent(prompt);
-    const response = await result.response;
-    const analysisText = response.text();
-
-    // 4. Send Response
+    // 5. Response
     res.json({
       status: 'success',
-      data: {
-        analysis: analysisText, // AI output
-        metadata: {
-          filename: req.file.originalname,
-          size: req.file.size
-        }
-      }
+      data: newDoc
     });
 
   } catch (error) {
-    console.error('Analysis Error:', error);
+    console.error('Controller Error:', error);
     res.status(500).json({ 
       status: 'error', 
       message: error.message || 'Error processing document.' 
     });
-
   } finally {
-    // 5. CLEANUP: Delete file after processing to save space
-    if (filePath && fs.existsSync(filePath)) {
-      try {
-        fs.unlinkSync(filePath);
-        console.log(`🗑️ Deleted temp file: ${filePath}`);
-      } catch (err) {
-        console.error(`⚠️ Failed to delete file: ${filePath}`, err);
-      }
-    }
+    // Cleanup: We keep the file for "Download Original" feature, 
+    // BUT in production, you should upload to S3/Cloud Storage and delete local.
+    // For this MVP, we keep it. 
+    // fs.unlinkSync(filePath); <--- Commented out for MVP History feature
   }
 };
 

@@ -20,7 +20,11 @@ const connectDB = async () => {
 
   } catch (error) {
     console.error(`❌ Error: ${error.message}`);
-    process.exit(1); // Exit process with failure
+    
+    // CORREÇÃO PARA TESTES: Não matar o processo se for ambiente de teste
+    if (process.env.NODE_ENV !== 'test') {
+      process.exit(1); 
+    }
   }
 };
 

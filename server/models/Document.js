@@ -1,4 +1,3 @@
-// server/models/Document.js
 const mongoose = require('mongoose');
 
 const DocumentSchema = new mongoose.Schema({
@@ -9,7 +8,7 @@ const DocumentSchema = new mongoose.Schema({
     required: true 
   },
   
-  // --- DADOS DA ANÁLISE ---
+  // --- ANALYSIS DATA ---
   sentimentScore: { type: Number },
   sentimentComparative: { type: Number },
   verdict: { type: String },
@@ -18,16 +17,16 @@ const DocumentSchema = new mongoose.Schema({
     negative: [String]
   },
 
-  // --- DADOS DA IA (PREMIUM) ---
+  // --- AI PREMIUM DATA ---
   aiSummary: { type: String },
   riskAnalysis: { type: Number },
   strategicAdvice: { type: String },
 
-  // --- O ELO PERDIDO (VINCULO COM O USUÁRIO) ---
+  // --- USER RELATIONSHIP ---
   userId: {
-    type: mongoose.Schema.Types.ObjectId, // Isso diz que é um ID de usuário
-    ref: 'User', // Aponta para a tabela de Usuários
-    required: true // OBRIGA a ter um dono
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    required: true
   },
 
   createdAt: { 

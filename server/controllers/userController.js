@@ -1,10 +1,24 @@
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
+const { z } = require('zod'); // Import Zod
 const User = require('../models/User');
 const Document = require('../models/Document');
 const sendEmail = require('../utils/sendEmail');
 
-// Generate Token with Version (Enforces Session Invalidating)
+// --- ZOD SCHEMAS ---
+const registerSchema = z.object({
+  firstName: z.string().min(2, "First name too short"),
+  lastName: z.string().min(2, "Last name too short"),
+  email: z.string().email("Invalid email format"),
+  password: z.string().min(6, "Password must be at least 6 characters"),
+});
+
+const loginSchema = z.object({
+  email: z.string().email(),
+  password: z.string(),
+});
+
+// --- HELPERS ---
 const generateToken = (id, tokenVersion) => {
   return jwt.sign({ id, tokenVersion }, process.env.JWT_SECRET, { expiresIn: '30d' });
 };
@@ -12,20 +26,16 @@ const generateToken = (id, tokenVersion) => {
 // 1. REGISTER
 const registerUser = async (req, res) => {
   try {
-    const { firstName, lastName, email, password } = req.body;
+    // 1. Validation (Security Hardening)
+    const { firstName, lastName, email, password } = registerSchema.parse(req.body);
 
-    if (!firstName || !lastName || !email || !password) {
-      return res.status(400).json({ status: 'error', message: 'All fields are required.' });
-    }
-    if (password.length < 6) {
-      return res.status(400).json({ status: 'error', message: 'Password must be at least 6 characters.' });
-    }
-    
+    // 2. Check Duplicates
     const userExists = await User.findOne({ email });
     if (userExists) {
       return res.status(400).json({ status: 'error', message: 'Email already registered.' });
     }
 
+    // 3. Create User
     const user = await User.create({ firstName, lastName, email, password });
 
     if (user) {
@@ -35,236 +45,252 @@ const registerUser = async (req, res) => {
         lastName: user.lastName,
         email: user.email,
         token: generateToken(user._id, user.tokenVersion),
-        isPro: user.isPro,
-        twoFactorEnabled: user.twoFactorEnabled
+        isPro: user.isPro
       });
     } else {
       res.status(400).json({ status: 'error', message: 'Invalid user data.' });
     }
   } catch (error) {
-    console.error('Register Error:', error);
-    res.status(500).json({ status: 'error', message: 'Server error.' });
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({ status: 'error', message: error.errors[0].message });
+    }
+    res.status(500).json({ status: 'error', message: 'Server error during registration.' });
   }
 };
 
-// 2. LOGIN (Increments version and invalidates old sessions)
+// 2. LOGIN
 const loginUser = async (req, res) => {
   try {
-    const { email, password } = req.body;
+    const { email, password } = loginSchema.parse(req.body);
+
     const user = await User.findOne({ email });
 
     if (user && (await user.matchPassword(password))) {
       
-      // 2FA Flow
+      // 2FA Check
       if (user.twoFactorEnabled) {
+        // Generate 6-digit code
         const code = Math.floor(100000 + Math.random() * 900000).toString();
+        
         user.twoFactorCode = crypto.createHash('sha256').update(code).digest('hex');
         user.twoFactorExpires = Date.now() + 10 * 60 * 1000; // 10 mins
-        
-        await user.save({ validateBeforeSave: false });
-
-        const message = `
-          <div style="font-family: Arial, sans-serif; padding: 20px;">
-            <h2>Your Security Code</h2>
-            <h1 style="color: #2563eb;">${code}</h1>
-          </div>
-        `;
+        await user.save();
 
         try {
           await sendEmail({
             email: user.email,
-            subject: 'Access Code - LegalMind AI',
-            message,
+            subject: 'LegalMind AI - Your Login Code',
+            message: `<h1>${code}</h1><p>This code expires in 10 minutes.</p>`
           });
-
-          return res.json({ 
+          
+          return res.status(200).json({ 
+            status: 'success', 
             requires2FA: true, 
-            email: user.email,
-            message: 'Security code sent to email.' 
+            message: '2FA Code sent to email.' 
           });
-
         } catch (emailError) {
           user.twoFactorCode = undefined;
           user.twoFactorExpires = undefined;
-          await user.save({ validateBeforeSave: false });
-          return res.status(500).json({ status: 'error', message: 'Error sending 2FA code.' });
+          await user.save();
+          return res.status(500).json({ status: 'error', message: 'Failed to send 2FA email.' });
         }
       }
 
-      // Direct Login -> Invalidate old sessions
-      user.tokenVersion = (user.tokenVersion || 0) + 1;
-      await user.save();
-
+      // Standard Login
       res.json({
         _id: user._id,
         firstName: user.firstName,
         lastName: user.lastName,
         email: user.email,
-        token: generateToken(user._id, user.tokenVersion),
-        isPro: user.isPro,
         isAdmin: user.isAdmin,
-        twoFactorEnabled: user.twoFactorEnabled,
-        usageCount: user.usageCount
+        isPro: user.isPro,
+        token: generateToken(user._id, user.tokenVersion),
+        twoFactorEnabled: user.twoFactorEnabled
       });
-
     } else {
       res.status(401).json({ status: 'error', message: 'Invalid email or password.' });
     }
   } catch (error) {
-     console.error('Login Error:', error);
-     res.status(500).json({ status: 'error', message: 'Server error.' });
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({ status: 'error', message: error.errors[0].message });
+    }
+    res.status(500).json({ status: 'error', message: 'Server error during login.' });
   }
 };
 
-// 2.5 VERIFY 2FA
-const verifyTwoFactor = async (req, res) => {
-  const { email, code } = req.body;
-
+// 3. GET PROFILE
+const getUserProfile = async (req, res) => {
   try {
+    const user = await User.findById(req.user._id);
+    if (user) {
+      res.json({
+        _id: user._id,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        email: user.email,
+        isAdmin: user.isAdmin,
+        isPro: user.isPro,
+        twoFactorEnabled: user.twoFactorEnabled
+      });
+    } else {
+      res.status(404).json({ status: 'error', message: 'User not found.' });
+    }
+  } catch (error) {
+    res.status(500).json({ status: 'error', message: 'Fetch profile error.' });
+  }
+};
+
+// 4. UPDATE PROFILE
+const updateUserProfile = async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id);
+
+    if (user) {
+      user.firstName = req.body.firstName || user.firstName;
+      user.lastName = req.body.lastName || user.lastName;
+      
+      // Handle Password Change
+      if (req.body.password) {
+        if(req.body.password.length < 6) {
+             return res.status(400).json({ status: 'error', message: 'Password too short.' });
+        }
+        user.password = req.body.password;
+        // Invalidate previous tokens by incrementing version
+        user.tokenVersion += 1; 
+      }
+
+      // Handle 2FA Toggle
+      if (req.body.twoFactorEnabled !== undefined) {
+        user.twoFactorEnabled = req.body.twoFactorEnabled;
+      }
+
+      const updatedUser = await user.save();
+
+      res.json({
+        _id: updatedUser._id,
+        firstName: updatedUser.firstName,
+        lastName: updatedUser.lastName,
+        email: updatedUser.email,
+        isAdmin: updatedUser.isAdmin,
+        isPro: updatedUser.isPro,
+        token: generateToken(updatedUser._id, updatedUser.tokenVersion), // Issue new token
+        twoFactorEnabled: updatedUser.twoFactorEnabled
+      });
+    } else {
+      res.status(404).json({ status: 'error', message: 'User not found.' });
+    }
+  } catch (error) {
+    res.status(500).json({ status: 'error', message: 'Update profile error.' });
+  }
+};
+
+// 5. VERIFY 2FA
+const verifyTwoFactor = async (req, res) => {
+  try {
+    const { email, code } = req.body;
+    
+    // Hash the received code to compare with DB
     const hashedCode = crypto.createHash('sha256').update(code).digest('hex');
 
     const user = await User.findOne({
       email,
       twoFactorCode: hashedCode,
-      twoFactorExpires: { $gt: Date.now() },
+      twoFactorExpires: { $gt: Date.now() } // Check expiry
     });
 
     if (!user) {
       return res.status(400).json({ status: 'error', message: 'Invalid or expired code.' });
     }
 
-    // Success -> Clear code & Invalidate old sessions
+    // Clear 2FA fields
     user.twoFactorCode = undefined;
     user.twoFactorExpires = undefined;
-    
-    user.tokenVersion = (user.tokenVersion || 0) + 1;
-    await user.save({ validateBeforeSave: false });
+    await user.save();
 
     res.json({
       _id: user._id,
       firstName: user.firstName,
       lastName: user.lastName,
       email: user.email,
-      token: generateToken(user._id, user.tokenVersion),
-      isPro: user.isPro,
       isAdmin: user.isAdmin,
-      twoFactorEnabled: user.twoFactorEnabled,
-      usageCount: user.usageCount
+      isPro: user.isPro,
+      token: generateToken(user._id, user.tokenVersion),
+      twoFactorEnabled: user.twoFactorEnabled
     });
 
   } catch (error) {
-    res.status(500).json({ status: 'error', message: 'Verification error.' });
+    res.status(500).json({ status: 'error', message: '2FA Verification error.' });
   }
 };
 
-// 3. GET USER PROFILE
-const getUserProfile = async (req, res) => {
-  const user = await User.findById(req.user._id);
-  if (user) {
-    res.json({
-      _id: user._id,
-      firstName: user.firstName,
-      lastName: user.lastName,
-      email: user.email,
-      isPro: user.isPro,
-      isAdmin: user.isAdmin,
-      twoFactorEnabled: user.twoFactorEnabled,
-      usageCount: user.usageCount,
-      createdAt: user.createdAt
-    });
-  } else {
-    res.status(404).json({ status: 'error', message: 'User not found.' });
-  }
-};
-
-// 4. UPDATE USER PROFILE
-const updateUserProfile = async (req, res) => {
-  const user = await User.findById(req.user._id);
-
-  if (user) {
-    user.firstName = req.body.firstName || user.firstName;
-    user.lastName = req.body.lastName || user.lastName;
-
-    if (req.body.twoFactorEnabled !== undefined) {
-      user.twoFactorEnabled = req.body.twoFactorEnabled;
-    }
-
-    if (req.body.password) {
-      if (req.body.password.length < 6) {
-         return res.status(400).json({ status: 'error', message: 'Password must be at least 6 characters.' });
-      }
-      user.password = req.body.password;
-      // Password changed? Invalidate all other sessions!
-      user.tokenVersion = (user.tokenVersion || 0) + 1;
-    }
-    
-    const updatedUser = await user.save();
-
-    res.json({
-      _id: updatedUser._id,
-      firstName: updatedUser.firstName,
-      lastName: updatedUser.lastName,
-      email: updatedUser.email,
-      isPro: updatedUser.isPro,
-      twoFactorEnabled: updatedUser.twoFactorEnabled,
-      token: generateToken(updatedUser._id, updatedUser.tokenVersion),
-    });
-  } else {
-    res.status(404).json({ status: 'error', message: 'User not found.' });
-  }
-};
-
-// 5. FORGOT PASSWORD
+// 6. FORGOT PASSWORD
 const forgotPassword = async (req, res) => {
-  const { email } = req.body;
   try {
+    const { email } = req.body;
     const user = await User.findOne({ email });
-    if (!user) return res.status(404).json({ status: 'error', message: 'Email not found.' });
-    
+
+    if (!user) {
+      // Security: Don't reveal user existence
+      return res.status(200).json({ status: 'success', message: 'If email exists, reset link sent.' });
+    }
+
+    // Generate Reset Token
     const resetToken = crypto.randomBytes(20).toString('hex');
     user.resetPasswordToken = crypto.createHash('sha256').update(resetToken).digest('hex');
     user.resetPasswordExpire = Date.now() + 10 * 60 * 1000; // 10 mins
-    
-    await user.save({ validateBeforeSave: false });
-    
-    // Security Fix: Use env variable for client URL
-    const clientUrl = process.env.CLIENT_URL || 'http://localhost:5173';
-    const resetUrl = `${clientUrl}/reset-password/${resetToken}`;
-    
-    await sendEmail({ 
-      email: user.email, 
-      subject: 'Password Reset Request', 
-      message: `Click here to reset your password: ${resetUrl}` 
-    });
-    
-    res.status(200).json({ status: 'success', message: 'Email sent!' });
+
+    await user.save();
+
+    // Frontend URL
+    const resetUrl = `${process.env.CLIENT_URL || 'http://localhost:5173'}/reset-password/${resetToken}`;
+
+    const message = `
+      <h1>Password Reset Request</h1>
+      <p>Click the link below to reset your password:</p>
+      <a href="${resetUrl}" clicktracking=off>${resetUrl}</a>
+    `;
+
+    try {
+      await sendEmail({
+        email: user.email,
+        subject: 'LegalMind AI - Password Reset',
+        message
+      });
+      res.status(200).json({ status: 'success', message: 'Email sent.' });
+    } catch (err) {
+      user.resetPasswordToken = undefined;
+      user.resetPasswordExpire = undefined;
+      await user.save();
+      res.status(500).json({ status: 'error', message: 'Email could not be sent.' });
+    }
   } catch (error) {
-    user.resetPasswordToken = undefined;
-    user.resetPasswordExpire = undefined;
-    await user.save({ validateBeforeSave: false });
     res.status(500).json({ status: 'error', message: 'Server error.' });
   }
 };
 
-// 6. RESET PASSWORD
+// 7. RESET PASSWORD
 const resetPassword = async (req, res) => {
-  const resetPasswordToken = crypto.createHash('sha256').update(req.params.resetToken).digest('hex');
-  
   try {
-    const user = await User.findOne({ 
-      resetPasswordToken, 
-      resetPasswordExpire: { $gt: Date.now() } 
+    const resetPasswordToken = crypto.createHash('sha256').update(req.params.resetToken).digest('hex');
+
+    const user = await User.findOne({
+      resetPasswordToken,
+      resetPasswordExpire: { $gt: Date.now() }
     });
 
-    if (!user) return res.status(400).json({ status: 'error', message: 'Invalid or expired token.' });
+    if (!user) {
+      return res.status(400).json({ status: 'error', message: 'Invalid or expired token.' });
+    }
+
+    if(req.body.password.length < 6) {
+        return res.status(400).json({ status: 'error', message: 'Password too short.' });
+    }
 
     user.password = req.body.password;
     user.resetPasswordToken = undefined;
     user.resetPasswordExpire = undefined;
-    
-    // Invalidate sessions on password reset
-    user.tokenVersion = (user.tokenVersion || 0) + 1;
-    
+    user.tokenVersion += 1; // Invalidate all sessions
+
     await user.save();
     res.status(200).json({ status: 'success', message: 'Password updated!' });
   } catch (error) { 
@@ -272,7 +298,7 @@ const resetPassword = async (req, res) => {
   }
 };
 
-// 7. UPGRADE TO PRO
+// 8. UPGRADE TO PRO
 const upgradeToPro = async (req, res) => {
   try {
     const user = await User.findById(req.user._id);
@@ -298,19 +324,27 @@ const upgradeToPro = async (req, res) => {
   }
 };
 
-// 8. DELETE ACCOUNT
+// 9. DELETE ACCOUNT
 const deleteAccount = async (req, res) => {
   try {
     const userId = req.user._id;
     await Document.deleteMany({ userId: userId });
     await User.findByIdAndDelete(userId);
-    res.json({ status: 'success', message: 'Account deleted.' });
+    
+    res.json({ status: 'success', message: 'User and data deleted.' });
   } catch (error) {
     res.status(500).json({ status: 'error', message: 'Delete account error.' });
   }
 };
 
-module.exports = { 
-  registerUser, loginUser, verifyTwoFactor, getUserProfile, 
-  updateUserProfile, upgradeToPro, forgotPassword, resetPassword, deleteAccount
+module.exports = {
+  registerUser,
+  loginUser,
+  getUserProfile,
+  updateUserProfile,
+  forgotPassword,
+  resetPassword,
+  upgradeToPro,
+  verifyTwoFactor,
+  deleteAccount
 };
