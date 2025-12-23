@@ -1,66 +1,32 @@
 import React from 'react';
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
-import { Toaster } from 'react-hot-toast';
-import { AuthProvider } from './context/AuthContext';
-import { ThemeProvider } from './context/ThemeContext';
+import { Navigate, useLocation } from 'react-router-dom';
+import { Loader2 } from 'lucide-react';
+// CORREÇÃO DO CAMINHO (O erro do Build era aqui):
+import { useAuth } from '../context/AuthContext'; 
 
-// Components
-import ThemeToggle from './components/ThemeToggle';
-import ProtectedRoute from './components/ProtectedRoute';
+const ProtectedRoute = ({ children, adminOnly }) => {
+  const { user, loading } = useAuth();
+  const location = useLocation();
 
-// Pages
-import Home from './pages/Home';
-import Login from './pages/Login';
-import Register from './pages/Register';
-import Dashboard from './pages/Dashboard';
-import History from './pages/History';
-import Pricing from './pages/Pricing';
-import Jurisprudence from './pages/Jurisprudence';
-import Profile from './pages/Profile';
-import AdminDashboard from './pages/AdminDashboard';
-import ForgotPassword from './pages/ForgotPassword';
-import ResetPassword from './pages/ResetPassword';
-import NotFound from './pages/NotFound';
-import Terms from './pages/Terms';
-import Privacy from './pages/Privacy';
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center h-screen bg-slate-50 dark:bg-slate-900">
+        <Loader2 className="animate-spin text-blue-600" size={48} />
+      </div>
+    );
+  }
 
-function App() {
-  return (
-    <BrowserRouter>
-      <AuthProvider>
-        <ThemeProvider>
-          <Toaster position="top-right" toastOptions={{ duration: 4000 }} />
+  // 1. Se não estiver logado -> Manda pro Login
+  if (!user) {
+    return <Navigate to="/" state={{ from: location }} replace />;
+  }
 
-          {/* Botão Flutuante Global de Tema */}
-          <ThemeToggle floating={true} />
+  // 2. Se a rota for só para Admin e o usuário não for admin -> Manda pro Dashboard comum
+  if (adminOnly && !user.isAdmin) {
+    return <Navigate to="/dashboard" replace />;
+  }
 
-          <Routes>
-            {/* Rotas Públicas */}
-            <Route path="/" element={<Home />} />
-            <Route path="/login" element={<Login />} />
-            <Route path="/register" element={<Register />} />
-            <Route path="/forgot-password" element={<ForgotPassword />} />
-            <Route path="/reset-password/:token" element={<ResetPassword />} />
-            <Route path="/terms" element={<Terms />} />
-            <Route path="/privacy" element={<Privacy />} />
+  return children;
+};
 
-            {/* Rotas Protegidas (Requer Login) */}
-            <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
-            <Route path="/history" element={<ProtectedRoute><History /></ProtectedRoute>} />
-            <Route path="/jurisprudence" element={<ProtectedRoute><Jurisprudence /></ProtectedRoute>} />
-            <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
-            <Route path="/pricing" element={<ProtectedRoute><Pricing /></ProtectedRoute>} />
-            
-            {/* Rota de Admin (Requer Login + Permissão Admin) */}
-            <Route path="/admin" element={<ProtectedRoute adminOnly={true}><AdminDashboard /></ProtectedRoute>} />
-
-            {/* Rota 404 - Qualquer endereço desconhecido cai aqui */}
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-        </ThemeProvider>
-      </AuthProvider>
-    </BrowserRouter>
-  );
-}
-
-export default App;
+export default ProtectedRoute;
