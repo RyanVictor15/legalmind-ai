@@ -10,7 +10,7 @@ const Jurisprudence = () => {
   const [searched, setSearched] = useState(false);
   const navigate = useNavigate();
 
-  // Filters
+  // Filtros
   const [court, setCourt] = useState('');
   const [area, setArea] = useState('');
 
@@ -25,7 +25,6 @@ const Jurisprudence = () => {
       if (area) params.area = area;
 
       const { data } = await api.get('/jurisprudence', { params });
-      // Standardized response: { status: 'success', data: [...] }
       setResults(data.data || []);
     } catch (error) {
       console.error(error);
@@ -41,14 +40,14 @@ const Jurisprudence = () => {
         {/* HEADER */}
         <div className="mb-10 text-center">
             <h1 className="text-4xl font-bold text-slate-900 dark:text-white mb-4 flex justify-center items-center gap-3">
-                <Scale className="text-blue-600" size={40}/> Jurisprudence Search
+                <Scale className="text-blue-600" size={40}/> Busca de Jurisprudência
             </h1>
             <p className="text-slate-500 dark:text-slate-400 text-lg">
-                Access over 50 million updated decisions from unified courts.
+                Acesse mais de 50 milhões de decisões unificadas dos tribunais.
             </p>
         </div>
 
-        {/* SEARCH BAR */}
+        {/* BARRA DE BUSCA */}
         <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-lg border border-slate-200 dark:border-slate-700 mb-10">
             <form onSubmit={handleSearch} className="space-y-4">
                 <div className="relative">
@@ -56,7 +55,7 @@ const Jurisprudence = () => {
                     <input 
                         type="text" 
                         className="w-full pl-14 pr-4 py-4 text-lg bg-slate-50 dark:bg-slate-900 border-2 border-slate-100 dark:border-slate-700 rounded-xl focus:border-blue-500 outline-none transition text-slate-800 dark:text-white"
-                        placeholder="Search by keywords, process number or topic (e.g., 'Moral Damages Flight Delay')"
+                        placeholder="Pesquise por palavras-chave, número do processo ou tema (ex: 'Dano Moral Atraso Voo')"
                         value={query}
                         onChange={(e) => setQuery(e.target.value)}
                     />
@@ -68,11 +67,11 @@ const Jurisprudence = () => {
                         value={court}
                         onChange={(e) => setCourt(e.target.value)}
                     >
-                        <option value="">All Courts</option>
-                        <option value="STF">STF (Supreme Court)</option>
-                        <option value="STJ">STJ (Superior Court)</option>
-                        <option value="TJSP">TJSP (São Paulo)</option>
-                        <option value="TJRJ">TJRJ (Rio de Janeiro)</option>
+                        <option value="">Todos os Tribunais</option>
+                        <option value="STF">STF</option>
+                        <option value="STJ">STJ</option>
+                        <option value="TJSP">TJSP</option>
+                        <option value="TJRJ">TJRJ</option>
                     </select>
 
                     <select 
@@ -80,31 +79,31 @@ const Jurisprudence = () => {
                         value={area}
                         onChange={(e) => setArea(e.target.value)}
                     >
-                        <option value="">All Areas</option>
-                        <option value="Civil">Civil Law</option>
-                        <option value="Penal">Criminal Law</option>
-                        <option value="Trabalhista">Labor Law</option>
-                        <option value="Tributário">Tax Law</option>
+                        <option value="">Todas as Áreas</option>
+                        <option value="Civil">Cível</option>
+                        <option value="Penal">Criminal</option>
+                        <option value="Trabalhista">Trabalhista</option>
+                        <option value="Tributário">Tributário</option>
                     </select>
 
                     <button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-3 rounded-lg font-bold transition flex items-center justify-center gap-2 shadow-lg">
-                        {loading ? <Loader2 className="animate-spin"/> : 'Search Precedents'}
+                        {loading ? <Loader2 className="animate-spin"/> : 'Buscar Precedentes'}
                     </button>
                 </div>
             </form>
         </div>
 
-        {/* RESULTS */}
+        {/* RESULTADOS */}
         <div className="space-y-6">
             {loading ? (
                 <div className="text-center py-20">
                     <Loader2 size={48} className="animate-spin text-blue-500 mx-auto"/>
-                    <p className="text-slate-500 mt-4">Searching database...</p>
+                    <p className="text-slate-500 mt-4">Pesquisando na base de dados...</p>
                 </div>
             ) : results.length > 0 ? (
                 <>
                     <h3 className="text-slate-500 dark:text-slate-400 font-bold uppercase text-xs tracking-wider mb-4">
-                        {results.length} Decisions Found
+                        {results.length} Decisões Encontradas
                     </h3>
                     {results.map((item) => (
                         <div key={item._id} className="bg-white dark:bg-slate-800 p-6 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 hover:shadow-md transition group">
@@ -118,12 +117,12 @@ const Jurisprudence = () => {
                                     </span>
                                 </div>
                                 <span className="text-slate-400 dark:text-slate-500 text-xs">
-                                    {new Date(item.date).toLocaleDateString()}
+                                    {new Date(item.date).toLocaleDateString('pt-BR')}
                                 </span>
                             </div>
                             
                             <h4 className="text-lg font-bold text-slate-800 dark:text-white mb-2 group-hover:text-blue-600 transition">
-                                {item.area} Decision
+                                Decisão {item.area}
                             </h4>
                             
                             <p className="text-slate-600 dark:text-slate-300 text-sm leading-relaxed mb-4 line-clamp-3">
@@ -143,8 +142,8 @@ const Jurisprudence = () => {
             ) : searched ? (
                 <div className="text-center py-20 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 border-dashed">
                     <BookOpen size={48} className="mx-auto text-slate-300 mb-4"/>
-                    <h3 className="text-lg font-medium text-slate-600 dark:text-slate-400">No results found</h3>
-                    <p className="text-slate-400 dark:text-slate-500 text-sm">Try using broader keywords or clearing filters.</p>
+                    <h3 className="text-lg font-medium text-slate-600 dark:text-slate-400">Nenhum resultado encontrado</h3>
+                    <p className="text-slate-400 dark:text-slate-500 text-sm">Tente palavras-chave mais amplas ou limpe os filtros.</p>
                 </div>
             ) : null}
         </div>

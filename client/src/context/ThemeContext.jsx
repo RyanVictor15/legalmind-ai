@@ -1,29 +1,31 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useState, useEffect } from 'react';
 
 const ThemeContext = createContext();
 
 export const ThemeProvider = ({ children }) => {
-  // 1. Try fetching from localStorage or use system preference
+  // Tenta ler do localStorage ou usa preferência do sistema, padrão 'dark'
   const [theme, setTheme] = useState(() => {
-    if (localStorage.getItem('theme')) {
-      return localStorage.getItem('theme');
+    if (typeof window !== 'undefined') {
+      const savedTheme = localStorage.getItem('theme');
+      if (savedTheme) return savedTheme;
+      return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
     }
-    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    return 'dark'; // Padrão seguro
   });
 
-  // 2. Apply 'dark' class to the main HTML element
   useEffect(() => {
     const root = window.document.documentElement;
-    if (theme === 'dark') {
-      root.classList.add('dark');
-    } else {
-      root.classList.remove('dark');
-    }
+    
+    // Remove a classe antiga e adiciona a nova
+    root.classList.remove('light', 'dark');
+    root.classList.add(theme);
+    
+    // Salva a preferência
     localStorage.setItem('theme', theme);
   }, [theme]);
 
   const toggleTheme = () => {
-    setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'));
+    setTheme((prev) => (prev === 'light' ? 'dark' : 'light'));
   };
 
   return (

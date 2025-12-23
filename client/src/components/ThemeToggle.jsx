@@ -4,26 +4,37 @@ import { useTheme } from '../context/ThemeContext';
 
 const ThemeToggle = ({ floating = false }) => {
   const { theme, toggleTheme } = useTheme();
+  const isDark = theme === 'dark';
 
-  // Estilo Base
-  const baseClasses = "p-2 rounded-full transition-all duration-300 focus:outline-none border shadow-md flex items-center justify-center";
-  
-  // Estilo de Cores
-  const colorClasses = "bg-white text-slate-800 hover:bg-slate-100 border-slate-200 dark:bg-slate-800 dark:text-yellow-400 dark:hover:bg-slate-700 dark:border-slate-600";
+  if (floating) {
+    return (
+      <button
+        onClick={toggleTheme}
+        className={`fixed bottom-6 left-6 z-50 p-3 rounded-full shadow-xl transition-all duration-300 border ${
+          isDark 
+            ? 'bg-slate-800 text-yellow-400 border-slate-700 hover:bg-slate-700' 
+            : 'bg-white text-slate-800 border-slate-200 hover:bg-slate-100'
+        }`}
+        aria-label="Alternar Tema"
+        title={isDark ? "Mudar para Modo Claro" : "Mudar para Modo Escuro"}
+      >
+        {isDark ? <Sun size={24} /> : <Moon size={24} />}
+      </button>
+    );
+  }
 
-  // Estilo Flutuante (Fixo no canto) vs Estilo Normal (No menu)
-  const positionClasses = floating 
-    ? "fixed bottom-6 right-6 z-50 w-12 h-12 shadow-xl" 
-    : "";
-
+  // Versão para Navbar (não flutuante)
   return (
     <button
       onClick={toggleTheme}
-      className={`${baseClasses} ${colorClasses} ${positionClasses}`}
-      title={theme === 'dark' ? "Mudar para Claro" : "Mudar para Escuro"}
+      className={`p-2 rounded-lg transition-colors ${
+        isDark 
+          ? 'bg-slate-800 text-yellow-400 hover:bg-slate-700' 
+          : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+      }`}
       aria-label="Alternar Tema"
     >
-      {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
+      {isDark ? <Sun size={20} /> : <Moon size={20} />}
     </button>
   );
 };
