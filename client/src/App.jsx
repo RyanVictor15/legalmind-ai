@@ -2,7 +2,7 @@ import React from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import { AuthProvider } from './context/AuthContext';
-import { ThemeProvider } from './context/ThemeContext';
+import { ThemeProvider } from './context/ThemeContext'; // <--- OBRIGATÓRIO PARA AS CORES
 
 // Components
 import ThemeToggle from './components/ThemeToggle';
@@ -27,15 +27,20 @@ import Privacy from './pages/Privacy';
 function App() {
   return (
     <BrowserRouter>
+      {/* 1. Provedor de Autenticação (Login) */}
       <AuthProvider>
+        
+        {/* 2. Provedor de Tema (Cores Claro/Escuro) */}
         <ThemeProvider>
-          <Toaster position="top-right" />
+          
+          {/* Notificações Toast */}
+          <Toaster position="top-right" toastOptions={{ duration: 4000 }} />
 
-          {/* GLOBAL FLOATING BUTTON - Appears on ALL screens */}
+          {/* Botão Flutuante de Tema (Aparece em TODAS as telas) */}
           <ThemeToggle floating={true} />
 
           <Routes>
-            {/* Public Routes */}
+            {/* --- ROTAS PÚBLICAS --- */}
             <Route path="/" element={<Home />} />
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
@@ -44,19 +49,48 @@ function App() {
             <Route path="/terms" element={<Terms />} />
             <Route path="/privacy" element={<Privacy />} />
 
-            {/* Protected Routes */}
-            <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
-            <Route path="/history" element={<ProtectedRoute><History /></ProtectedRoute>} />
-            <Route path="/jurisprudence" element={<ProtectedRoute><Jurisprudence /></ProtectedRoute>} />
-            <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
-            <Route path="/pricing" element={<ProtectedRoute><Pricing /></ProtectedRoute>} />
+            {/* --- ROTAS PROTEGIDAS (Requer Login) --- */}
+            <Route path="/dashboard" element={
+              <ProtectedRoute>
+                <Dashboard />
+              </ProtectedRoute>
+            } />
             
-            {/* Admin Routes */}
-            <Route path="/admin" element={<ProtectedRoute adminOnly={true}><AdminDashboard /></ProtectedRoute>} />
+            <Route path="/history" element={
+              <ProtectedRoute>
+                <History />
+              </ProtectedRoute>
+            } />
+            
+            <Route path="/jurisprudence" element={
+              <ProtectedRoute>
+                <Jurisprudence />
+              </ProtectedRoute>
+            } />
+            
+            <Route path="/profile" element={
+              <ProtectedRoute>
+                <Profile />
+              </ProtectedRoute>
+            } />
+            
+            <Route path="/pricing" element={
+              <ProtectedRoute>
+                <Pricing />
+              </ProtectedRoute>
+            } />
+            
+            {/* --- ROTA ADMIN (Requer Login + Permissão Admin) --- */}
+            <Route path="/admin" element={
+              <ProtectedRoute adminOnly={true}>
+                <AdminDashboard />
+              </ProtectedRoute>
+            } />
 
-            {/* Fallback */}
+            {/* --- ROTA 404 (Qualquer outra URL) --- */}
             <Route path="*" element={<NotFound />} />
           </Routes>
+          
         </ThemeProvider>
       </AuthProvider>
     </BrowserRouter>

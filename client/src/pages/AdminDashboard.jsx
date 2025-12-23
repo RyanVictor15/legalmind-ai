@@ -12,11 +12,10 @@ const AdminDashboard = () => {
     const fetchStats = async () => {
       try {
         const { data } = await api.get('/admin/stats');
-        // Backend retorna: { status: 'success', data: { users: {...}, documents: {...}, latestUsers: [...] } }
         setStats(data.data); 
       } catch (error) {
         console.error("Erro Admin", error);
-        navigate('/dashboard'); // Chuta não-admins
+        navigate('/dashboard'); 
       } finally {
         setLoading(false);
       }
@@ -37,13 +36,14 @@ const AdminDashboard = () => {
       <div className="max-w-7xl mx-auto">
         <header className="flex justify-between items-center mb-10 border-b border-slate-200 dark:border-slate-800 pb-6">
             <div>
-                <h1 className="text-3xl font-bold flex items-center gap-3">
-                    <ShieldAlert className="text-red-600 dark:text-red-500" /> Centro de Comando
+                {/* TÍTULO DE TESTE PARA CONFIRMAR ATUALIZAÇÃO */}
+                <h1 className="text-3xl font-bold flex items-center gap-3 text-blue-600 dark:text-blue-400">
+                    <ShieldAlert /> PAINEL ADMINISTRATIVO 2.0
                 </h1>
-                <p className="text-slate-500 dark:text-slate-400 mt-1">Visão Geral do Sistema & Gestão de Usuários</p>
+                <p className="text-slate-500 dark:text-slate-400 mt-1">Gestão de Usuários e Estatísticas</p>
             </div>
             <button onClick={() => navigate('/dashboard')} className="bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 px-6 py-2 rounded-lg text-sm font-bold transition border border-slate-200 dark:border-slate-700 shadow-sm">
-                Sair para o App
+                Voltar ao App
             </button>
         </header>
 
@@ -52,7 +52,7 @@ const AdminDashboard = () => {
             <div className="bg-white dark:bg-slate-800 p-6 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
                 <div className="flex justify-between items-start">
                     <div>
-                        <p className="text-slate-500 dark:text-slate-400 text-xs font-bold uppercase tracking-wider">Total de Usuários</p>
+                        <p className="text-slate-500 dark:text-slate-400 text-xs font-bold uppercase tracking-wider">Usuários Totais</p>
                         <h3 className="text-4xl font-bold text-slate-800 dark:text-white mt-2">{stats.users.total}</h3>
                     </div>
                     <Users className="text-blue-500" size={24} />
@@ -72,7 +72,7 @@ const AdminDashboard = () => {
             <div className="bg-white dark:bg-slate-800 p-6 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
                 <div className="flex justify-between items-start">
                     <div>
-                        <p className="text-slate-500 dark:text-slate-400 text-xs font-bold uppercase tracking-wider">Docs Analisados</p>
+                        <p className="text-slate-500 dark:text-slate-400 text-xs font-bold uppercase tracking-wider">Documentos</p>
                         <h3 className="text-4xl font-bold text-emerald-500 mt-2">{stats.documents.total}</h3>
                     </div>
                     <FileText className="text-emerald-500" size={24} />
@@ -82,7 +82,7 @@ const AdminDashboard = () => {
             <div className="bg-white dark:bg-slate-800 p-6 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
                 <div className="flex justify-between items-start">
                     <div>
-                        <p className="text-slate-500 dark:text-slate-400 text-xs font-bold uppercase tracking-wider">Taxa de Conversão</p>
+                        <p className="text-slate-500 dark:text-slate-400 text-xs font-bold uppercase tracking-wider">Conversão</p>
                         <h3 className="text-4xl font-bold text-purple-500 mt-2">
                             {stats.users.total > 0 ? ((stats.users.pro / stats.users.total) * 100).toFixed(1) : 0}%
                         </h3>
@@ -95,12 +95,12 @@ const AdminDashboard = () => {
         {/* TABELA */}
         <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden shadow-sm">
             <div className="p-6 border-b border-slate-200 dark:border-slate-700">
-                <h3 className="font-bold text-lg text-slate-800 dark:text-white">Últimos Cadastros</h3>
+                <h3 className="font-bold text-lg text-slate-800 dark:text-white">Últimos Registos</h3>
             </div>
             <table className="w-full text-left border-collapse">
                 <thead className="bg-slate-50 dark:bg-slate-900/50 text-slate-500 dark:text-slate-400 text-xs uppercase">
                     <tr>
-                        <th className="p-4">Usuário</th>
+                        <th className="p-4">Nome</th>
                         <th className="p-4">E-mail</th>
                         <th className="p-4">Plano</th>
                         <th className="p-4">Data</th>
@@ -115,7 +115,7 @@ const AdminDashboard = () => {
                                 {user.isPro ? (
                                     <span className="bg-amber-100 dark:bg-amber-500/10 text-amber-600 dark:text-amber-500 px-2 py-1 rounded text-xs font-bold border border-amber-200 dark:border-amber-500/20">PRO</span>
                                 ) : (
-                                    <span className="bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-400 px-2 py-1 rounded text-xs">FREE</span>
+                                    <span className="bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-400 px-2 py-1 rounded text-xs">GRÁTIS</span>
                                 )}
                             </td>
                             <td className="p-4 text-slate-500 dark:text-slate-400 text-sm">
