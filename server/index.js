@@ -1,67 +1,69 @@
 const express = require('express');
 const cors = require('cors');
-const dotenv = require('dotenv'); // 1. Importar primeiro
-const path = require('path');
+const dotenv = require('dotenv');
+const path = require('path'); // Necessário para caminhos de arquivo
 
-// 2. CRÍTICO: Carregar variáveis ANTES de importar qualquer rota ou controller
+// 1. Carregar variáveis de ambiente
 dotenv.config(); 
 
 const helmet = require('helmet');
-const rateLimit = require('express-rate-limit');
 const mongoSanitize = require('express-mongo-sanitize');
 const xss = require('xss-clean');
 const connectDB = require('./config/db');
 const { notFound, errorHandler } = require('./middleware/errorMiddleware');
 
-// Routes (Agora é seguro importar, pois process.env já existe)
+// Rotas
 const analyzeRoutes = require('./routes/analyzeRoutes');
 const userRoutes = require('./routes/userRoutes');
 const jurisprudenceRoutes = require('./routes/jurisprudenceRoutes');
 const adminRoutes = require('./routes/adminRoutes');
 const paymentRoutes = require('./routes/paymentRoutes');
 
-// Connect to Database
+// Conectar ao Banco
 connectDB();
 
 const app = express();
 
-// Security & Config
-app.use(helmet({ contentSecurityPolicy: false, crossOriginEmbedderPolicy: false }));
+// Segurança
+app.use(helmet({ 
+  contentSecurityPolicy: false, 
+  crossOriginEmbedderPolicy: false,
+  crossOriginResourcePolicy: { policy: "cross-origin" } // Permite carregar arquivos
+}));
 
-// Strict CORS
+// CORS
 app.use(cors({ 
   origin: process.env.CLIENT_URL || 'http://localhost:5173', 
   credentials: true 
 }));
 
-// Stripe Webhook (Raw Body)
+// Webhook Stripe (Raw Body) - DEVE vir antes do parser JSON global
 app.use('/api/payments/webhook', express.raw({ type: 'application/json' }));
 
-// Global Parser
+// Parser Global
 app.use(express.json({ limit: '10kb' }));
 
-// Sanitization
+// Sanitização
 app.use(mongoSanitize());
 app.use(xss());
 
-// Routes Mount
+// --- CORREÇÃO CRÍTICA: Servir arquivos estáticos (Uploads) ---
+// Isso permite que o frontend baixe os PDFs acessando /uploads/arquivo.pdf
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
+// Rotas da API
 app.use('/api/analyze', analyzeRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/jurisprudence', jurisprudenceRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/payments', paymentRoutes);
 
-// Error Handling
+// Tratamento de Erros
 app.use(notFound);
 app.use(errorHandler);
 
 const PORT = process.env.PORT || 5000;
 
-// Export app for testing, only listen if not testing
-if (process.env.NODE_ENV !== 'test') {
-  app.listen(PORT, () => {
-    console.log(`🚀 Server running on port ${PORT}`);
-  });
-}
-
-module.exports = app;
+app.listen(PORT, () => {
+  console.log(`🚀 Servidor rodando na porta ${PORT}`);
+});

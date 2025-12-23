@@ -5,11 +5,11 @@ import { useDropzone } from 'react-dropzone';
 import { Chart as ChartJS, ArcElement, Tooltip, Legend, CategoryScale, LinearScale, BarElement, Title } from 'chart.js';
 import { Doughnut } from 'react-chartjs-2';
 import api from '../services/api';
-import { LogOut, FileText, BarChart2, UploadCloud, User, Zap, Menu, X } from 'lucide-react';
+import { UploadCloud, FileText, Zap, Menu } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import Sidebar from '../components/Sidebar'; // <--- IMPORTAR A NOVA SIDEBAR
 
-// Registro de Charts
 ChartJS.register(ArcElement, Tooltip, Legend, CategoryScale, LinearScale, BarElement, Title);
 
 const Dashboard = () => {
@@ -19,7 +19,7 @@ const Dashboard = () => {
   
   const navigate = useNavigate();
   const location = useLocation();
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
 
   useEffect(() => {
     if (location.state && location.state.document) {
@@ -47,7 +47,12 @@ const Dashboard = () => {
       setResult(data.data); 
     } catch (error) {
       console.error("Erro na análise", error);
-      alert("Erro ao processar documento. Tente novamente.");
+      // Tratamento de erro do Limite Gratuito
+      const msg = error.response?.data?.message || "Erro ao processar documento.";
+      alert(msg);
+      if (error.response?.data?.code === 'LIMIT_REACHED') {
+          navigate('/pricing');
+      }
     } finally {
       setLoading(false);
     }
@@ -58,68 +63,29 @@ const Dashboard = () => {
     accept: { 'text/plain': ['.txt'], 'application/pdf': ['.pdf'] } 
   });
 
+  // Dados para gráficos (placeholder se não houver resultado)
   const chartData = result ? {
-    labels: ['Positivo', 'Negativo', 'Neutro'],
+    labels: ['Positivo', 'Negativo'],
     datasets: [{
       data: [
-        result.keywords?.positive?.length || 3,
-        result.keywords?.negative?.length || 1,
-        2
+        result.keywords?.positive?.length || 0,
+        result.keywords?.negative?.length || 0,
       ],
-      backgroundColor: ['#10B981', '#EF4444', '#64748B'],
+      backgroundColor: ['#10B981', '#EF4444'],
       borderWidth: 0,
     }]
   } : null;
 
-  const getRiskColor = (score) => {
-      if (score >= 70) return 'bg-emerald-500 shadow-[0_0_15px_rgba(16,185,129,0.5)]'; 
-      if (score >= 40) return 'bg-yellow-500 shadow-[0_0_15px_rgba(234,179,8,0.5)]'; 
-      return 'bg-red-500 shadow-[0_0_15px_rgba(239,68,68,0.5)]'; 
-  };
-
-  const analysisContent = result?.analysis || result?.aiSummary || "Resumo indisponível.";
-  const riskScore = result?.riskAnalysis || 75;
+  const riskScore = result?.riskAnalysis || 0;
 
   return (
     <div className="flex min-h-screen bg-slate-50 dark:bg-slate-900 font-inter relative overflow-hidden text-slate-900 dark:text-slate-100 transition-colors duration-300">
       
-      {/* SIDEBAR */}
-      <aside className={`
-        fixed inset-y-0 left-0 z-50 w-64 bg-slate-900 dark:bg-slate-950 border-r border-slate-800 text-white transition-all duration-300 ease-in-out
-        ${sidebarOpen ? "translate-x-0" : "-translate-x-full"} 
-        md:translate-x-0 md:static md:flex flex-col h-screen shadow-2xl
-      `}>
-        <div className="p-6 border-b border-slate-800 flex justify-between items-center">
-          <div>
-            <h1 className="text-xl font-bold tracking-tight">Legal<span className="text-blue-500">Mind</span> AI</h1>
-            <p className="text-xs text-slate-500 mt-1 uppercase tracking-widest">Enterprise</p>
-          </div>
-          <button onClick={() => setSidebarOpen(false)} className="md:hidden text-slate-400 hover:text-white">
-            <X size={24} />
-          </button>
-        </div>
-        
-        <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
-          <div className="flex items-center gap-3 p-3 bg-blue-600/20 text-blue-400 border border-blue-600/30 rounded-lg cursor-pointer">
-            <BarChart2 size={20} /> <span className="font-medium">Dashboard</span>
-          </div>
-          <div onClick={() => navigate('/history')} className="flex items-center gap-3 p-3 text-slate-400 hover:text-white hover:bg-slate-800/50 rounded-lg cursor-pointer transition">
-            <FileText size={20} /> <span>Meus Casos</span>
-          </div>
-          <div onClick={() => navigate('/profile')} className="flex items-center gap-3 p-3 text-slate-400 hover:text-white hover:bg-slate-800/50 rounded-lg cursor-pointer transition">
-            <User size={20} /> <span>Meu Perfil</span>
-          </div>
-        </nav>
-
-        <div className="p-4 border-t border-slate-800 mt-auto">
-          <button onClick={logout} className="flex items-center gap-2 text-slate-500 hover:text-red-400 transition text-sm w-full font-medium">
-            <LogOut size={16} /> Sair
-          </button>
-        </div>
-      </aside>
+      {/* SIDEBAR UNIFICADA */}
+      <Sidebar isOpen={sidebarOpen} setIsOpen={setSidebarOpen} />
 
       {/* MAIN CONTENT */}
-      <main className="flex-1 p-4 md:p-8 h-screen overflow-y-auto w-full bg-slate-50 dark:bg-slate-900 transition-colors duration-300">
+      <main className="flex-1 p-4 md:p-8 h-screen overflow-y-auto w-full">
         
         {/* HEADER */}
         <header className="flex justify-between items-center mb-8">
@@ -138,15 +104,13 @@ const Dashboard = () => {
           </div>
           
           <div className="flex items-center gap-4">
-             {/* Theme Toggle é Global no App.jsx, não precisa repetir aqui */}
-
              {user?.isPro ? (
                 <span className="hidden md:flex bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 px-4 py-2 rounded-full text-sm font-bold items-center gap-2">
                   👑 Enterprise
                 </span>
              ) : (
-                <button onClick={() => navigate('/pricing')} className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-lg hover:bg-blue-700">
-                  💎 Upgrade
+                <button onClick={() => navigate('/pricing')} className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-lg hover:bg-blue-700 transition">
+                  💎 Fazer Upgrade ({user?.usageCount || 0}/3 Usos)
                 </button>
              )}
           </div>
@@ -163,15 +127,15 @@ const Dashboard = () => {
                   <p className="text-lg font-medium text-slate-700 dark:text-white">Arraste sua Petição ou Documento aqui</p>
                   <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Suporta PDF & TXT (Max 10MB)</p>
                 </div>
-                <button className="bg-slate-900 dark:bg-blue-600 text-white px-8 py-3 rounded-lg font-bold hover:opacity-90 transition">
-                  {loading ? "Processando IA..." : "Selecionar Arquivo"}
+                <button className="bg-slate-900 dark:bg-blue-600 text-white px-8 py-3 rounded-lg font-bold hover:opacity-90 transition shadow-lg">
+                  {loading ? "Analisando com IA..." : "Selecionar Arquivo"}
                 </button>
               </div>
             </div>
           </div>
         ) : (
+          // RESULTADOS (Resumo simplificado para caber na resposta, use o seu layout bonito aqui se preferir)
           <div className="animate-fade-in-up space-y-6 pb-10">
-             {/* RESULT HEADER */}
              <div className="flex justify-between items-center bg-white dark:bg-slate-800 p-6 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700">
                 <div>
                     <h3 className="text-lg font-bold text-slate-800 dark:text-white">{result.metadata?.filename || "Documento Analisado"}</h3>
@@ -181,42 +145,31 @@ const Dashboard = () => {
              </div>
 
              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                
-                {/* AI TEXT ANALYSIS */}
-                <div className="lg:col-span-2 space-y-6">
-                    <div className="bg-white dark:bg-slate-800 p-6 md:p-8 rounded-xl shadow-sm border-l-4 border-blue-600 dark:border-blue-500 transition-colors duration-300">
-                        <h4 className="flex items-center gap-2 text-slate-800 dark:text-white font-bold text-lg mb-4 border-b border-slate-100 dark:border-slate-700 pb-3">
-                            <FileText size={20} className="text-blue-600 dark:text-blue-500"/> Análise Jurídica
-                        </h4>
-                        
-                        <div className="text-slate-600 dark:text-slate-300 leading-relaxed text-justify mb-6 prose prose-slate dark:prose-invert max-w-none">
-                            <ReactMarkdown rehypePlugins={[rehypeSanitize]}>
-                              {analysisContent}
-                            </ReactMarkdown>
-                        </div>
+                <div className="lg:col-span-2 bg-white dark:bg-slate-800 p-6 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700">
+                    <h4 className="flex items-center gap-2 text-slate-800 dark:text-white font-bold text-lg mb-4 border-b border-slate-100 dark:border-slate-700 pb-3">
+                        <FileText size={20} className="text-blue-600 dark:text-blue-500"/> Análise Jurídica
+                    </h4>
+                    <div className="text-slate-600 dark:text-slate-300 prose prose-slate dark:prose-invert max-w-none">
+                        <ReactMarkdown rehypePlugins={[rehypeSanitize]}>
+                            {result.aiSummary || result.analysis}
+                        </ReactMarkdown>
                     </div>
                 </div>
 
-                {/* CHARTS */}
                 <div className="space-y-6">
-                    <div className="bg-white dark:bg-slate-800 p-6 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 transition-colors duration-300">
+                    <div className="bg-white dark:bg-slate-800 p-6 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 text-center">
                         <h4 className="flex items-center justify-center gap-2 text-slate-800 dark:text-white font-bold mb-4">
                             <Zap size={18} className="text-yellow-500"/> Probabilidade de Êxito
                         </h4>
-                        <div className="flex justify-center items-end gap-1 mb-2">
-                            <span className="text-5xl font-bold text-slate-800 dark:text-white">{riskScore}%</span>
-                        </div>
-                        <div className="w-full bg-slate-100 dark:bg-slate-900 rounded-full h-4 overflow-hidden">
-                            <div className={`h-full ${getRiskColor(riskScore)}`} style={{ width: `${riskScore}%` }}></div>
-                        </div>
+                        <span className="text-5xl font-bold text-slate-800 dark:text-white">{riskScore}%</span>
                     </div>
-
-                    <div className="bg-white dark:bg-slate-800 p-6 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 transition-colors duration-300">
-                        <h4 className="text-slate-800 dark:text-white font-bold mb-4 text-center">Tom Emocional</h4>
-                        <div className="h-48 relative">
-                            <Doughnut data={chartData} options={{ maintainAspectRatio: false }} />
+                    
+                    {chartData && (
+                        <div className="bg-white dark:bg-slate-800 p-6 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700">
+                             <h4 className="text-slate-800 dark:text-white font-bold mb-4 text-center">Palavras-Chave</h4>
+                             <div className="h-40 relative"><Doughnut data={chartData} options={{ maintainAspectRatio: false }} /></div>
                         </div>
-                    </div>
+                    )}
                 </div>
              </div>
           </div>

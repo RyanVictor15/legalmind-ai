@@ -1,22 +1,38 @@
 const fs = require('fs');
 const pdf = require('pdf-parse');
 const Document = require('../models/Document');
+const User = require('../models/User'); // Importar User para atualizar contagem
 const { generateLegalAnalysis } = require('../services/aiService');
 
-// @desc    Analyze Document with AI
+// @desc    Analisar Documento com IA
 // @route   POST /api/analyze
 // @access  Protected
 const analyzeDocument = async (req, res) => {
   let filePath = null;
 
   try {
-    // 1. Validate Upload
+    // 1. Validar Usuário e Limites (LÓGICA NOVA)
+    const user = await User.findById(req.user._id);
+    
+    // Se não for PRO e já tiver usado 3 ou mais vezes -> BLOQUEIA
+    if (!user.isPro && user.usageCount >= 3) {
+        // Se houver arquivo uploadado, deleta para não acumular lixo
+        if (req.file) fs.unlinkSync(req.file.path);
+        
+        return res.status(403).json({ 
+            status: 'error', 
+            message: 'Limite do plano gratuito atingido (3/3). Faça upgrade para continuar.',
+            code: 'LIMIT_REACHED'
+        });
+    }
+
+    // 2. Validar Upload
     if (!req.file) {
-      return res.status(400).json({ status: 'error', message: 'No file uploaded.' });
+      return res.status(400).json({ status: 'error', message: 'Nenhum arquivo enviado.' });
     }
     filePath = req.file.path;
 
-    // 2. Extract Text
+    // 3. Extrair Texto
     let extractedText = '';
     if (req.file.mimetype === 'application/pdf') {
       const dataBuffer = fs.readFileSync(filePath);
@@ -27,20 +43,20 @@ const analyzeDocument = async (req, res) => {
     }
 
     if (!extractedText.trim()) {
-      throw new Error('Document appears to be empty or unreadable.');
+      throw new Error('O documento parece estar vazio ou ilegível.');
     }
 
-    // 3. Call AI Service (Business Logic)
+    // 4. Chamar Serviço de IA
     const analysisResult = await generateLegalAnalysis(extractedText, req.file.originalname);
 
-    // 4. Save to Database (Persistence)
+    // 5. Salvar no Banco
     const newDoc = await Document.create({
       userId: req.user._id,
       filename: req.file.originalname,
-      filePath: filePath, // Keeping local path for history download
-      originalText: extractedText.substring(0, 1000), // Save only preview
+      filePath: filePath,
+      originalText: extractedText.substring(0, 1000), // Preview
       
-      // AI Data
+      // Dados da IA
       aiSummary: analysisResult.summary,
       riskAnalysis: analysisResult.riskScore,
       verdict: analysisResult.verdict,
@@ -48,7 +64,10 @@ const analyzeDocument = async (req, res) => {
       strategicAdvice: analysisResult.strategicAdvice
     });
 
-    // 5. Response
+    // 6. Incrementar Uso do Usuário (LÓGICA NOVA)
+    // Usamos $inc para ser atômico e seguro
+    await User.findByIdAndUpdate(req.user._id, { $inc: { usageCount: 1 } });
+
     res.json({
       status: 'success',
       data: newDoc
@@ -56,15 +75,14 @@ const analyzeDocument = async (req, res) => {
 
   } catch (error) {
     console.error('Controller Error:', error);
+    if (filePath && fs.existsSync(filePath)) {
+        // Limpeza em caso de erro (opcional, mas boa prática)
+        // fs.unlinkSync(filePath); 
+    }
     res.status(500).json({ 
       status: 'error', 
-      message: error.message || 'Error processing document.' 
+      message: error.message || 'Erro ao processar documento.' 
     });
-  } finally {
-    // Cleanup: We keep the file for "Download Original" feature, 
-    // BUT in production, you should upload to S3/Cloud Storage and delete local.
-    // For this MVP, we keep it. 
-    // fs.unlinkSync(filePath); <--- Commented out for MVP History feature
   }
 };
 

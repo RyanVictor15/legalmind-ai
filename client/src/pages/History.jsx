@@ -1,16 +1,15 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { BarChart2, FileText, Loader2, Shield, LogOut, User, Download, Eye } from 'lucide-react';
+import { FileText, Loader2, Download, Eye, Menu } from 'lucide-react';
 import api from '../services/api'; 
-import { useAuth } from '../context/AuthContext';
+import Sidebar from '../components/Sidebar'; // <--- O NOVO COMPONENTE
 
 const History = () => {
   const [documents, setDocuments] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const navigate = useNavigate();
-  const { logout } = useAuth();
   
-  // URL base para arquivos estáticos
   const API_BASE = import.meta.env.VITE_API_URL 
     ? import.meta.env.VITE_API_URL.replace('/api', '') 
     : 'http://localhost:5000';
@@ -40,39 +39,21 @@ const History = () => {
   return (
     <div className="flex min-h-screen bg-slate-50 dark:bg-slate-900 font-inter transition-colors duration-300">
       
-      {/* SIDEBAR */}
-      <aside className="w-64 bg-slate-900 dark:bg-slate-950 text-white hidden md:flex flex-col fixed h-full z-10 border-r border-slate-800">
-        <div className="p-6 border-b border-slate-800">
-          <h1 className="text-xl font-bold tracking-tight">Legal<span className="text-blue-500">Mind</span> AI</h1>
-          <p className="text-xs text-slate-400 mt-1">Enterprise Edition</p>
-        </div>
-        <nav className="flex-1 p-4 space-y-2">
-          <div onClick={() => navigate('/dashboard')} className="flex items-center gap-3 p-3 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg cursor-pointer transition">
-            <BarChart2 size={20} /> <span>Dashboard</span>
-          </div>
-          <div className="flex items-center gap-3 p-3 bg-blue-600 rounded-lg cursor-pointer transition shadow-lg shadow-blue-900/50 text-white">
-            <FileText size={20} /> <span className="font-medium">Meus Casos</span>
-          </div>
-          <div onClick={() => navigate('/jurisprudence')} className="flex items-center gap-3 p-3 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg cursor-pointer transition">
-            <Shield size={20} /> <span>Jurisprudência</span>
-          </div>
-          <div onClick={() => navigate('/profile')} className="flex items-center gap-3 p-3 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg cursor-pointer transition">
-            <User size={20} /> <span>Meu Perfil</span>
-          </div>
-        </nav>
-        <div className="p-4 border-t border-slate-800">
-          <button onClick={logout} className="flex items-center gap-2 text-slate-400 hover:text-red-400 transition text-sm">
-            <LogOut size={16} /> Sair
-          </button>
-        </div>
-      </aside>
+      <Sidebar isOpen={sidebarOpen} setIsOpen={setSidebarOpen} />
 
-      {/* MAIN AREA */}
-      <main className="flex-1 md:ml-64 p-8">
+      <main className="flex-1 p-8 h-screen overflow-y-auto">
+        {/* Mobile Header */}
+        <div className="md:hidden flex items-center mb-6">
+            <button onClick={() => setSidebarOpen(true)} className="p-2 text-slate-600 dark:text-slate-400 mr-4">
+                <Menu size={24} />
+            </button>
+            <h2 className="text-xl font-bold text-slate-800 dark:text-white">Meus Casos</h2>
+        </div>
+
         <header className="flex justify-between items-center mb-8">
           <div>
-            <h2 className="text-2xl font-bold text-slate-800 dark:text-white">Meus Casos</h2>
-            <p className="text-slate-500 dark:text-slate-400">Histórico completo e downloads.</p>
+            <h2 className="text-2xl font-bold text-slate-800 dark:text-white">Histórico de Análises</h2>
+            <p className="text-slate-500 dark:text-slate-400">Acesse e baixe seus documentos processados.</p>
           </div>
         </header>
 
@@ -117,11 +98,11 @@ const History = () => {
                                 </td>
                                 <td className="p-5">
                                     <span className={`px-3 py-1 rounded-full text-xs font-bold border ${
-                                        (doc.verdict === 'Favorável' || doc.verdict === 'Favorable') ? 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800' : 
-                                        (doc.verdict === 'Desfavorável' || doc.verdict === 'Unfavorable') ? 'bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-400 border-red-200 dark:border-red-800' : 
+                                        (doc.verdict === 'Favorable' || doc.verdict === 'Favorável') ? 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800' : 
+                                        (doc.verdict === 'Unfavorable' || doc.verdict === 'Desfavorável') ? 'bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-400 border-red-200 dark:border-red-800' : 
                                         'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-600'
                                     }`}>
-                                        {doc.verdict ? doc.verdict.toUpperCase() : 'NEUTRO'}
+                                        {doc.verdict === 'Favorable' ? 'FAVORÁVEL' : doc.verdict === 'Unfavorable' ? 'DESFAVORÁVEL' : 'NEUTRO'}
                                     </span>
                                 </td>
                                 <td className="p-5 flex items-center gap-2">
