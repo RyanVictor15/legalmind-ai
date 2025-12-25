@@ -5,9 +5,9 @@ const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
 const generateLegalAnalysis = async (text, filename) => {
   try {
-    // --- ATENÇÃO: CONFIGURAÇÃO DE SEGURANÇA ADICIONADA ---
+    // --- ATUALIZAÇÃO AQUI: Mudamos para gemini-1.5-flash ---
     const model = genAI.getGenerativeModel({ 
-      model: "gemini-pro",
+      model: "gemini-1.5-flash", // <--- AQUI ESTAVA gemini-pro
       safetySettings: [
         {
           category: HarmCategory.HARM_CATEGORY_HARASSMENT,
@@ -28,7 +28,6 @@ const generateLegalAnalysis = async (text, filename) => {
       ],
     });
 
-    // Structured Prompt for Legal Analysis
     const prompt = `
       Role: Senior Legal Analyst.
       Task: Analyze the provided legal document text and output a JSON response.
@@ -41,13 +40,13 @@ const generateLegalAnalysis = async (text, filename) => {
       Output Format (Strict JSON):
       {
         "summary": "Resumo conciso do caso em português",
-        "riskScore": 0-100 (integer, high means high success probability),
+        "riskScore": 0-100 (integer),
         "verdict": "Favorable" | "Unfavorable" | "Neutral",
         "keywords": {
-           "positive": ["lista", "de", "pontos", "fortes"],
-           "negative": ["lista", "de", "pontos", "fracos"]
+           "positive": ["lista", "pontos", "fortes"],
+           "negative": ["lista", "pontos", "fracos"]
         },
-        "strategicAdvice": "Conselho estratégico em um parágrafo"
+        "strategicAdvice": "Conselho estratégico curto"
       }
     `;
 
@@ -55,28 +54,26 @@ const generateLegalAnalysis = async (text, filename) => {
     const response = await result.response;
     const textOutput = response.text();
 
-    console.log("Raw AI Response:", textOutput); // Log para debug no Render
+    console.log("Resposta Bruta da IA:", textOutput);
 
-    // Limpeza para garantir JSON válido (remove crases de markdown)
     const jsonString = textOutput.replace(/```json/g, '').replace(/```/g, '').trim();
 
     try {
         return JSON.parse(jsonString);
     } catch (e) {
-        console.error("Erro ao fazer parse do JSON da IA:", e);
-        // Fallback caso a IA não retorne JSON perfeito
+        console.error("Erro ao converter JSON:", e);
         return {
             summary: textOutput.substring(0, 500),
             riskScore: 50,
             verdict: "Neutral",
-            keywords: { positive: [], negative: [] },
-            strategicAdvice: "A IA retornou uma análise não estruturada. Verifique o resumo."
+            keywords: { positive: ["Erro de Formato"], negative: ["Tente novamente"] },
+            strategicAdvice: "A IA respondeu, mas o formato JSON falhou. Veja o resumo."
         };
     }
 
   } catch (error) {
-    console.error("Erro no Serviço de IA:", error);
-    throw new Error('Falha ao gerar análise com IA: ' + error.message);
+    console.error("Erro CRÍTICO no AI Service:", error);
+    throw new Error('Falha na IA: ' + error.message);
   }
 };
 
