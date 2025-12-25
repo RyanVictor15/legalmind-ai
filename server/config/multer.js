@@ -22,7 +22,7 @@ const storage = multer.diskStorage({
 
 // File Filter (Security: Allow only PDF and TXT)
 const fileFilter = (req, file, cb) => {
-  const allowedTypes = /pdf|plain/;
+  const allowedTypes = /pdf|txt|plain/;
   const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
   const mimetype = allowedTypes.test(file.mimetype);
 
