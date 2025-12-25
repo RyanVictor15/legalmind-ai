@@ -5,26 +5,17 @@ const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
 const generateLegalAnalysis = async (text, filename) => {
   try {
-    // --- ATUALIZAÇÃO AQUI: Mudamos para gemini-1.5-flash ---
+    // TENTATIVA 1: Usar o modelo Flash Específico (Mais estável)
+    // Se falhar, você pode trocar manualmente por "gemini-pro"
+    const modelName = "gemini-1.5-flash-latest"; 
+
     const model = genAI.getGenerativeModel({ 
-      model: "gemini-1.5-flash", // <--- AQUI ESTAVA gemini-pro
+      model: modelName,
       safetySettings: [
-        {
-          category: HarmCategory.HARM_CATEGORY_HARASSMENT,
-          threshold: HarmBlockThreshold.BLOCK_NONE,
-        },
-        {
-          category: HarmCategory.HARM_CATEGORY_HATE_SPEECH,
-          threshold: HarmBlockThreshold.BLOCK_NONE,
-        },
-        {
-          category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
-          threshold: HarmBlockThreshold.BLOCK_NONE,
-        },
-        {
-          category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
-          threshold: HarmBlockThreshold.BLOCK_NONE,
-        },
+        { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_NONE },
+        { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_NONE },
+        { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_NONE },
+        { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_NONE },
       ],
     });
 
@@ -61,18 +52,22 @@ const generateLegalAnalysis = async (text, filename) => {
     try {
         return JSON.parse(jsonString);
     } catch (e) {
-        console.error("Erro ao converter JSON:", e);
+        console.error("Erro JSON:", e);
         return {
             summary: textOutput.substring(0, 500),
             riskScore: 50,
             verdict: "Neutral",
-            keywords: { positive: ["Erro de Formato"], negative: ["Tente novamente"] },
-            strategicAdvice: "A IA respondeu, mas o formato JSON falhou. Veja o resumo."
+            keywords: { positive: ["Erro Formato"], negative: ["Tente novamente"] },
+            strategicAdvice: "Análise concluída, mas formato visual falhou. Leia o resumo."
         };
     }
 
   } catch (error) {
-    console.error("Erro CRÍTICO no AI Service:", error);
+    console.error("Erro IA:", error);
+    // Se der erro de modelo não encontrado, avisamos claramente
+    if (error.message.includes('404') || error.message.includes('not found')) {
+        throw new Error('Modelo de IA não encontrado. Tente limpar o Cache do Deploy.');
+    }
     throw new Error('Falha na IA: ' + error.message);
   }
 };
