@@ -64,6 +64,44 @@ app.use(errorHandler);
 
 const PORT = process.env.PORT || 5000;
 
+// --- INÍCIO DO BLOCO DE TESTE (Pode apagar depois) ---
+const { GoogleGenerativeAI } = require('@google/generative-ai');
+
+app.get('/api/test-ai', async (req, res) => {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) return res.status(500).json({ error: "Sem chave API configurada" });
+
+  const genAI = new GoogleGenerativeAI(apiKey);
+  
+  // Lista dos nomes mais prováveis
+  const candidates = [
+    "gemini-1.5-flash",
+    "gemini-1.5-flash-latest",
+    "gemini-pro",
+    "gemini-1.0-pro"
+  ];
+
+  let results = [];
+
+  for (const modelName of candidates) {
+    try {
+      console.log(`Testando: ${modelName}...`);
+      const model = genAI.getGenerativeModel({ model: modelName });
+      // Tenta gerar um simples "Oi"
+      await model.generateContent("Oi");
+      results.push({ model: modelName, status: "✅ FUNCIONANDO", message: "Este é o nome correto!" });
+    } catch (error) {
+      results.push({ model: modelName, status: "❌ FALHOU", error: error.message.split('[')[0] });
+    }
+  }
+
+  res.json({
+    libraryVersion: require('./package.json').dependencies['@google/generative-ai'],
+    testResults: results
+  });
+});
+// --- FIM DO BLOCO DE TESTE ---
+
 app.listen(PORT, () => {
   console.log(`🚀 Servidor rodando na porta ${PORT}`);
 });
