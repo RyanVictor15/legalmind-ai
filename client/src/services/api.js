@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-// Define a URL da API (usa a do Render se estiver em produção)
+// Define a URL base. Se não houver variável de ambiente, usa o Render.
 const API_URL = import.meta.env.VITE_API_URL || 'https://legalmind-api.onrender.com/api';
 
 const api = axios.create({
@@ -8,25 +8,24 @@ const api = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
-  timeout: 120000, // 2 minutos para não dar timeout na IA
+  // Timeout de 3 minutos para evitar erro na IA
+  timeout: 180000, 
 });
 
-// Adiciona o Token automaticamente (se o usuário estiver logado)
+// Interceptor: Adiciona o Token de segurança automaticamente
 api.interceptors.request.use(
   (config) => {
     const user = localStorage.getItem('user');
     if (user) {
       const { token } = JSON.parse(user);
-      if (token) {
-        config.headers.Authorization = `Bearer ${token}`;
-      }
+      if (token) config.headers.Authorization = `Bearer ${token}`;
     }
     return config;
   },
   (error) => Promise.reject(error)
 );
 
-// --- FUNÇÕES EXPORTADAS (Isso corrige o erro do Dashboard) ---
+// --- FUNÇÕES EXPORTADAS (Essenciais para o Dashboard) ---
 
 export const loginUser = async (credentials) => {
   const response = await api.post('/users/login', credentials);
@@ -38,13 +37,18 @@ export const registerUser = async (userData) => {
   return response.data;
 };
 
-// AQUI ESTÁ A FUNÇÃO QUE FALTAVA:
+// CORREÇÃO: A função que estava faltando e causava o erro
 export const analyzeDocument = async (formData) => {
   const response = await api.post('/analyze', formData, {
     headers: {
-      'Content-Type': 'multipart/form-data',
+      'Content-Type': 'multipart/form-data', // Obrigatório para arquivos
     },
   });
+  return response.data;
+};
+
+export const getHistory = async () => {
+  const response = await api.get('/jurisprudence/history');
   return response.data;
 };
 
