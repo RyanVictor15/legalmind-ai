@@ -1,68 +1,88 @@
-const { GoogleGenerativeAI } = require('@google/generative-ai');
-
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+// Removemos a dependência da biblioteca problemática
+// Usamos fetch nativo do Node.js (Funciona sempre)
 
 const generateLegalAnalysis = async (text, filename) => {
-  // Lista de modelos para tentativa de fallback (caso um falhe)
-  const modelsToTry = ["gemini-1.5-flash", "gemini-pro"];
-  
-  let lastError = null;
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) throw new Error("GEMINI_API_KEY faltando no .env");
 
-  for (const modelName of modelsToTry) {
+  // Lista de modelos para tentar (do mais rápido para o mais compatível)
+  const models = ["gemini-1.5-flash", "gemini-pro"];
+
+  for (const modelName of models) {
     try {
-      console.log(`🤖 IA: Tentando modelo ${modelName}...`);
-      const model = genAI.getGenerativeModel({ model: modelName });
-
-      const prompt = `
-        Você é um Analista Jurídico Sênior (Brasil).
-        Analise o seguinte documento: "${filename}".
-        Texto extraído: "${text.substring(0, 20000).replace(/"/g, "'")}"
-        
-        Sua tarefa: Retornar APENAS um JSON válido. Não use Markdown. Não explique nada fora do JSON.
-        Estrutura obrigatória:
-        {
-          "summary": "Resumo detalhado dos fatos e pedidos (máx 500 caracteres)",
-          "riskScore": (número de 0 a 100, onde 100 é êxito garantido),
-          "verdict": "Favorable" ou "Unfavorable" ou "Neutral",
-          "keywords": { "positive": ["lista", "de", "pontos", "fortes"], "negative": ["lista", "de", "pontos", "fracos"] },
-          "strategicAdvice": "Conselho estratégico prático para o advogado."
+      console.log(`🤖 Conectando via HTTP ao modelo: ${modelName}...`);
+      
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
+      
+      const requestBody = {
+        contents: [{
+          parts: [{ 
+            text: `
+              Atue como Advogado Sênior Especialista.
+              Analise este documento: "${filename}".
+              Texto: "${text.substring(0, 25000).replace(/"/g, "'").replace(/\n/g, " ")}" 
+              
+              Gere um JSON estrito com esta estrutura:
+              {
+                "summary": "Resumo jurídico detalhado (fatos, direito, pedidos)",
+                "riskScore": 75,
+                "verdict": "Favorable" | "Unfavorable" | "Neutral",
+                "keywords": { "positive": ["ponto1", "ponto2"], "negative": ["risco1"] },
+                "strategicAdvice": "Conselho prático para o advogado atuar no caso."
+              }
+            ` 
+          }]
+        }],
+        generationConfig: {
+            temperature: 0.2, // Mais preciso
+            responseMimeType: "application/json" // Força JSON no Gemini 1.5
         }
-      `;
+      };
 
-      const result = await model.generateContent(prompt);
-      const response = await result.response;
-      let textOutput = response.text();
+      const response = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(requestBody)
+      });
 
-      // --- LIMPEZA BLINDADA DE JSON ---
-      // Remove blocos de código markdown (```json ... ```) se existirem
+      if (!response.ok) {
+        throw new Error(`Erro API Google: ${response.status} ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      
+      // Extração segura do texto
+      let textOutput = data.candidates?.[0]?.content?.parts?.[0]?.text;
+      
+      if (!textOutput) throw new Error("IA retornou resposta vazia");
+
+      // LIMPEZA CIRÚRGICA DE JSON
+      // Remove ```json no inicio e ``` no final
       textOutput = textOutput.replace(/```json/g, '').replace(/```/g, '').trim();
       
-      // Encontra onde começa o { e onde termina o } para ignorar textos fora
+      // Garante que pegamos apenas o objeto JSON (entre a primeira { e a última })
       const firstBrace = textOutput.indexOf('{');
       const lastBrace = textOutput.lastIndexOf('}');
-      
       if (firstBrace !== -1 && lastBrace !== -1) {
         textOutput = textOutput.substring(firstBrace, lastBrace + 1);
       }
 
-      console.log("✅ IA: Resposta gerada com sucesso.");
+      console.log(`✅ Sucesso com ${modelName}!`);
       return JSON.parse(textOutput);
 
     } catch (error) {
-      console.warn(`⚠️ Erro no modelo ${modelName}:`, error.message);
-      lastError = error;
-      // Tenta o próximo modelo...
+      console.warn(`⚠️ Falha no modelo ${modelName}:`, error.message);
+      // Continua o loop para tentar o próximo modelo (gemini-pro)
     }
   }
 
-  // Se tudo falhar, retorna um objeto de erro seguro (não derruba o servidor)
-  console.error("❌ IA: Falha total.");
+  // Se tudo falhar, retorna erro amigável
   return {
-    summary: "Não foi possível processar a análise automática neste momento devido a uma instabilidade na IA. O texto foi salvo.",
+    summary: "Erro de conexão com a IA. Verifique sua chave de API ou tente novamente.",
     riskScore: 0,
     verdict: "Neutral",
-    keywords: { positive: [], negative: ["Erro de Análise"] },
-    strategicAdvice: "Tente novamente em alguns instantes."
+    keywords: { positive: [], negative: ["Erro Técnico"] },
+    strategicAdvice: "O sistema não conseguiu contatar o Google Gemini."
   };
 };
 
