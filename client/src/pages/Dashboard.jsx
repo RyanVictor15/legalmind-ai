@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import Sidebar from '../components/Sidebar';
 import FileUpload from '../components/FileUpload';
 import { useAuth } from '../context/AuthContext';
-// IMPORTANTE: Agora esta importação vai funcionar porque corrigimos o api.js
+// Certifique-se que você atualizou o api.js no passo anterior para ter essa função:
 import { analyzeDocument } from '../services/api';
 
 const Dashboard = () => {
@@ -17,8 +17,8 @@ const Dashboard = () => {
       const result = await analyzeDocument(fileData);
       setAnalysis(result);
     } catch (error) {
-      console.error("Erro:", error);
-      alert("Erro ao analisar: " + (error.response?.data?.error || error.message));
+      console.error("Erro dashboard:", error);
+      alert("Erro ao processar: " + (error.response?.data?.error || error.message));
     } finally {
       setLoading(false);
     }
@@ -27,13 +27,13 @@ const Dashboard = () => {
   return (
     <div className="flex min-h-screen bg-slate-950 text-slate-100 font-sans overflow-hidden">
       
-      {/* Sidebar: Controla seu próprio tamanho no mobile */}
+      {/* Sidebar Responsiva */}
       <Sidebar />
 
       {/* Conteúdo Principal */}
       <main className="flex-1 flex flex-col min-w-0 relative h-screen overflow-y-auto transition-all">
         
-        {/* Espaçador Mobile (Para o botão do menu não tapar o título) */}
+        {/* Espaçador Mobile */}
         <div className="md:hidden h-16 w-full shrink-0"></div>
 
         <div className="p-4 md:p-8 max-w-7xl mx-auto w-full space-y-8 pb-24">
@@ -48,16 +48,14 @@ const Dashboard = () => {
               </div>
             </header>
 
-            {/* GRID RESPONSIVO: 
-               - Mobile (grid-cols-1): Um item abaixo do outro.
-               - Desktop (lg:grid-cols-3): Upload na esquerda (2/3), Stats na direita (1/3).
-            */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 md:gap-8">
               
               {/* Coluna Esquerda: Upload */}
               <div className="lg:col-span-2 space-y-6">
                 <div className="bg-slate-900/50 border border-slate-800/60 rounded-2xl p-1 shadow-2xl">
-                  <FileUpload onAnalyze={handleAnalyze} loading={loading} />
+                  {/* --- A CORREÇÃO ESTÁ AQUI EMBAIXO --- */}
+                  {/* Antes estava onAnalyze={handleAnalyze}, agora está onFileUpload */}
+                  <FileUpload onFileUpload={handleAnalyze} isLoading={loading} />
                 </div>
 
                 {/* Resultado */}
@@ -67,6 +65,14 @@ const Dashboard = () => {
                     <p className="whitespace-pre-wrap text-slate-300 text-sm leading-relaxed text-justify">
                       {analysis.summary}
                     </p>
+                    
+                    {/* Exibir Score se existir */}
+                    {analysis.riskScore !== undefined && (
+                        <div className="mt-4 p-4 bg-slate-950 rounded-lg">
+                           <span className="text-sm text-slate-400">Probabilidade de Êxito: </span>
+                           <span className="font-bold text-white">{analysis.riskScore}%</span>
+                        </div>
+                    )}
                   </div>
                 )}
               </div>
