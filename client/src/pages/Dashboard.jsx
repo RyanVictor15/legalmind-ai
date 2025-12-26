@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import Sidebar from '../components/Sidebar';
 import FileUpload from '../components/FileUpload';
 import { useAuth } from '../context/AuthContext';
-// Certifique-se que você atualizou o api.js no passo anterior para ter essa função:
 import { analyzeDocument } from '../services/api';
 
 const Dashboard = () => {
@@ -10,15 +9,27 @@ const Dashboard = () => {
   const [analysis, setAnalysis] = useState(null);
   const [loading, setLoading] = useState(false);
 
-  const handleAnalyze = async (fileData) => {
+  // --- A CORREÇÃO ESTÁ NESTA FUNÇÃO ---
+  const handleAnalyze = async (file) => {
     setLoading(true);
     setAnalysis(null);
     try {
-      const result = await analyzeDocument(fileData);
+      // 1. Criamos um objeto FormData (O "envelope" que o servidor entende)
+      const formData = new FormData();
+      
+      // 2. Colocamos o arquivo dentro com o nome 'file' 
+      // (Isso é OBRIGATÓRIO porque no backend está upload.single('file'))
+      formData.append('file', file);
+
+      // 3. Enviamos o envelope completo
+      const result = await analyzeDocument(formData);
+      
       setAnalysis(result);
     } catch (error) {
       console.error("Erro dashboard:", error);
-      alert("Erro ao processar: " + (error.response?.data?.error || error.message));
+      // Melhora a mensagem de erro para o usuário
+      const msg = error.response?.data?.message || error.message || "Erro desconhecido";
+      alert("Falha na análise: " + msg);
     } finally {
       setLoading(false);
     }
@@ -53,26 +64,54 @@ const Dashboard = () => {
               {/* Coluna Esquerda: Upload */}
               <div className="lg:col-span-2 space-y-6">
                 <div className="bg-slate-900/50 border border-slate-800/60 rounded-2xl p-1 shadow-2xl">
-                  {/* --- A CORREÇÃO ESTÁ AQUI EMBAIXO --- */}
-                  {/* Antes estava onAnalyze={handleAnalyze}, agora está onFileUpload */}
+                  {/* Passamos a função corrigida aqui */}
                   <FileUpload onFileUpload={handleAnalyze} isLoading={loading} />
                 </div>
 
-                {/* Resultado */}
+                {/* Resultado da Análise */}
                 {analysis && (
-                  <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl">
-                    <h2 className="text-xl font-semibold text-blue-400 mb-4">⚖️ Análise Jurídica</h2>
-                    <p className="whitespace-pre-wrap text-slate-300 text-sm leading-relaxed text-justify">
-                      {analysis.summary}
-                    </p>
-                    
-                    {/* Exibir Score se existir */}
-                    {analysis.riskScore !== undefined && (
-                        <div className="mt-4 p-4 bg-slate-950 rounded-lg">
-                           <span className="text-sm text-slate-400">Probabilidade de Êxito: </span>
-                           <span className="font-bold text-white">{analysis.riskScore}%</span>
+                  <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl animate-fade-in-up">
+                    <h2 className="text-xl font-semibold text-blue-400 mb-6 flex items-center gap-2">
+                      <span className="p-1.5 bg-blue-500/10 rounded-lg">⚖️</span> 
+                      Análise Jurídica
+                    </h2>
+
+                    <div className="prose prose-invert max-w-none text-slate-300 space-y-4 text-justify leading-relaxed">
+                      {/* Resumo do Texto */}
+                      <p className="whitespace-pre-wrap">{analysis.summary}</p>
+                      
+                      {/* Veredito e Conselho (Se houver) */}
+                      {analysis.verdict && (
+                        <div className="mt-4 p-4 bg-slate-950/50 rounded-lg border border-slate-800">
+                          <strong className="text-white block mb-1">Veredito da IA:</strong>
+                          <span className={
+                            analysis.verdict === 'Favorable' ? 'text-green-400' : 
+                            analysis.verdict === 'Unfavorable' ? 'text-red-400' : 'text-yellow-400'
+                          }>
+                            {analysis.verdict}
+                          </span>
                         </div>
-                    )}
+                      )}
+
+                      {/* Probabilidade de Êxito */}
+                      {analysis.riskScore !== undefined && (
+                        <div className="mt-6 p-4 bg-slate-950 rounded-xl border border-slate-800">
+                           <div className="flex justify-between items-center mb-2">
+                              <span className="text-sm font-medium text-slate-400">Probabilidade de Êxito</span>
+                              <span className="text-lg font-bold text-white">{analysis.riskScore}%</span>
+                           </div>
+                           <div className="w-full bg-slate-800 rounded-full h-2.5">
+                              <div 
+                                className={`h-2.5 rounded-full transition-all duration-1000 ${
+                                  analysis.riskScore > 70 ? 'bg-emerald-500' : 
+                                  analysis.riskScore > 40 ? 'bg-yellow-500' : 'bg-red-500'
+                                }`}
+                                style={{ width: `${analysis.riskScore}%` }}
+                              ></div>
+                           </div>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 )}
               </div>
