@@ -1,113 +1,69 @@
+const { GoogleGenerativeAI } = require('@google/generative-ai');
+
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+
 const generateLegalAnalysis = async (text, filename) => {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) throw new Error("GEMINI_API_KEY faltando");
+  // Lista de modelos para tentativa de fallback (caso um falhe)
+  const modelsToTry = ["gemini-1.5-flash", "gemini-pro"];
+  
+  let lastError = null;
 
-  // 1. FUNÇÃO DE AUTO-DESCOBERTA DE MODELO
-  // Pergunta ao Google quais modelos sua chave pode acessar
-  async function getBestModel() {
+  for (const modelName of modelsToTry) {
     try {
-      console.log("🔍 Consultando lista de modelos disponíveis na sua conta...");
-      const listUrl = `https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`;
-      const response = await fetch(listUrl);
-      const data = await response.json();
+      console.log(`🤖 IA: Tentando modelo ${modelName}...`);
+      const model = genAI.getGenerativeModel({ model: modelName });
 
-      if (!data.models) {
-        console.error("❌ Erro ao listar modelos:", data);
-        return "gemini-1.5-flash"; // Fallback cego
-      }
+      const prompt = `
+        Você é um Analista Jurídico Sênior (Brasil).
+        Analise o seguinte documento: "${filename}".
+        Texto extraído: "${text.substring(0, 20000).replace(/"/g, "'")}"
+        
+        Sua tarefa: Retornar APENAS um JSON válido. Não use Markdown. Não explique nada fora do JSON.
+        Estrutura obrigatória:
+        {
+          "summary": "Resumo detalhado dos fatos e pedidos (máx 500 caracteres)",
+          "riskScore": (número de 0 a 100, onde 100 é êxito garantido),
+          "verdict": "Favorable" ou "Unfavorable" ou "Neutral",
+          "keywords": { "positive": ["lista", "de", "pontos", "fortes"], "negative": ["lista", "de", "pontos", "fracos"] },
+          "strategicAdvice": "Conselho estratégico prático para o advogado."
+        }
+      `;
 
-      // Procura o primeiro modelo que suporte 'generateContent'
-      const bestModel = data.models.find(m => 
-        m.supportedGenerationMethods && 
-        m.supportedGenerationMethods.includes("generateContent") &&
-        m.name.includes("gemini") // Dá preferência aos modelos Gemini
-      );
+      const result = await model.generateContent(prompt);
+      const response = await result.response;
+      let textOutput = response.text();
 
-      if (bestModel) {
-        // O nome vem como 'models/gemini-pro', removemos o prefixo se precisar
-        const modelName = bestModel.name.replace("models/", "");
-        console.log(`✅ Modelo detectado e selecionado: ${modelName}`);
-        return modelName;
-      }
+      // --- LIMPEZA BLINDADA DE JSON ---
+      // Remove blocos de código markdown (```json ... ```) se existirem
+      textOutput = textOutput.replace(/```json/g, '').replace(/```/g, '').trim();
       
-      return "gemini-pro"; // Último recurso
-    } catch (e) {
-      console.error("⚠️ Falha na auto-descoberta, usando padrão:", e.message);
-      return "gemini-1.5-flash";
+      // Encontra onde começa o { e onde termina o } para ignorar textos fora
+      const firstBrace = textOutput.indexOf('{');
+      const lastBrace = textOutput.lastIndexOf('}');
+      
+      if (firstBrace !== -1 && lastBrace !== -1) {
+        textOutput = textOutput.substring(firstBrace, lastBrace + 1);
+      }
+
+      console.log("✅ IA: Resposta gerada com sucesso.");
+      return JSON.parse(textOutput);
+
+    } catch (error) {
+      console.warn(`⚠️ Erro no modelo ${modelName}:`, error.message);
+      lastError = error;
+      // Tenta o próximo modelo...
     }
   }
 
-  try {
-    // 2. DESCOBRE O MODELO REAL
-    const modelName = await getBestModel();
-
-    // 3. FAZ A REQUISIÇÃO
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
-    
-    console.log(`🤖 Iniciando análise com: ${modelName}`);
-
-    const requestBody = {
-      contents: [{
-        parts: [{ 
-          text: `
-            Role: Senior Legal Analyst.
-            Task: Return a JSON analysis.
-            Lang: Portuguese (Brazil).
-            Doc: ${filename}
-            Text: "${text.substring(0, 15000).replace(/"/g, "'").replace(/\n/g, " ")}" 
-            
-            Strict JSON Output:
-            {
-              "summary": "Resumo conciso",
-              "riskScore": 50,
-              "verdict": "Neutral",
-              "keywords": {"positive":[], "negative":[]},
-              "strategicAdvice": "Conselho"
-            }
-          ` 
-        }]
-      }],
-      safetySettings: [
-        { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
-        { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" },
-        { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_NONE" },
-        { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" }
-      ]
-    };
-
-    const response = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(requestBody)
-    });
-
-    if (!response.ok) {
-      const errText = await response.text();
-      throw new Error(`Google API Error (${response.status}): ${errText}`);
-    }
-
-    const data = await response.json();
-    const textOutput = data.candidates?.[0]?.content?.parts?.[0]?.text || "{}";
-
-    // 4. TRATAMENTO DA RESPOSTA
-    const cleanJson = textOutput.replace(/```json/g, '').replace(/```/g, '').trim();
-    
-    try {
-      return JSON.parse(cleanJson);
-    } catch (e) {
-      return {
-        summary: textOutput.substring(0, 500),
-        riskScore: 50,
-        verdict: "Neutral",
-        keywords: { positive: [], negative: [] },
-        strategicAdvice: "Erro de formatação visual. Leia o resumo."
-      };
-    }
-
-  } catch (error) {
-    console.error("❌ ERRO FINAL:", error.message);
-    throw new Error("Falha na IA: " + error.message);
-  }
+  // Se tudo falhar, retorna um objeto de erro seguro (não derruba o servidor)
+  console.error("❌ IA: Falha total.");
+  return {
+    summary: "Não foi possível processar a análise automática neste momento devido a uma instabilidade na IA. O texto foi salvo.",
+    riskScore: 0,
+    verdict: "Neutral",
+    keywords: { positive: [], negative: ["Erro de Análise"] },
+    strategicAdvice: "Tente novamente em alguns instantes."
+  };
 };
 
 module.exports = { generateLegalAnalysis };
