@@ -79,101 +79,125 @@ const Dashboard = () => {
   const riskScore = result?.riskAnalysis || 0;
 
   return (
-    <div className="flex min-h-screen bg-slate-50 dark:bg-slate-900 font-inter relative overflow-hidden text-slate-900 dark:text-slate-100 transition-colors duration-300">
+    <div className="min-h-screen bg-slate-950 flex text-slate-100 font-sans selection:bg-blue-500/30">
       
-      {/* SIDEBAR UNIFICADA */}
-      <Sidebar isOpen={sidebarOpen} setIsOpen={setSidebarOpen} />
+      {/* 1. SIDEBAR INTELIGENTE (Já configurada no passo anterior) */}
+      <Sidebar />
 
-      {/* MAIN CONTENT */}
-      <main className="flex-1 p-4 md:p-8 h-screen overflow-y-auto w-full">
+      {/* 2. ÁREA DE CONTEÚDO PRINCIPAL */}
+      <main className="flex-1 flex flex-col min-w-0 overflow-hidden transition-all duration-300 relative">
         
-        {/* HEADER */}
-        <header className="flex justify-between items-center mb-8">
-          <div className="flex items-center gap-4">
-            <button onClick={() => setSidebarOpen(true)} className="md:hidden p-2 text-slate-600 dark:text-slate-400">
-              <Menu size={24} />
-            </button>
-            <div>
-              <h2 className="text-xl md:text-2xl font-bold text-slate-800 dark:text-white">
-                Olá, Dr(a). {user?.lastName || 'Advogado'}
-              </h2>
-              <p className="text-sm text-slate-500 dark:text-slate-400 hidden md:block">
-                Painel de Controle Inteligente
-              </p>
-            </div>
-          </div>
-          
-          <div className="flex items-center gap-4">
-             {user?.isPro ? (
-                <span className="hidden md:flex bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 px-4 py-2 rounded-full text-sm font-bold items-center gap-2">
-                  👑 Enterprise
-                </span>
-             ) : (
-                <button onClick={() => navigate('/pricing')} className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-lg hover:bg-blue-700 transition">
-                  💎 Fazer Upgrade ({user?.usageCount || 0}/3 Usos)
-                </button>
-             )}
-          </div>
-        </header>
+        {/* ESPAÇADOR MOBILE: Empurra o conteúdo para baixo para não ficar atrás do botão de menu */}
+        <div className="md:hidden h-16 w-full shrink-0"></div> 
 
-        {/* UPLOAD BOX */}
-        {!result ? (
-          <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 p-6 md:p-10 text-center animate-fade-in transition-colors duration-300">
-            <div {...getRootProps()} className={`border-2 border-dashed rounded-xl p-8 md:p-12 transition-all cursor-pointer ${isDragActive ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20' : 'border-slate-300 dark:border-slate-600 hover:border-blue-400 dark:hover:border-slate-500'}`}>
-              <input {...getInputProps()} />
-              <div className="flex flex-col items-center gap-5">
-                <div className="bg-slate-100 dark:bg-slate-900 p-5 rounded-full text-blue-600 dark:text-blue-500"><UploadCloud size={32} /></div>
-                <div>
-                  <p className="text-lg font-medium text-slate-700 dark:text-white">Arraste sua Petição ou Documento aqui</p>
-                  <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Suporta PDF & TXT (Max 10MB)</p>
-                </div>
-                <button className="bg-slate-900 dark:bg-blue-600 text-white px-8 py-3 rounded-lg font-bold hover:opacity-90 transition shadow-lg">
-                  {loading ? "Analisando com IA..." : "Selecionar Arquivo"}
-                </button>
+        <div className="flex-1 overflow-y-auto p-4 md:p-8 scroll-smooth">
+          <div className="max-w-7xl mx-auto w-full space-y-8 pb-20">
+            
+            {/* CABEÇALHO (Boas-vindas) */}
+            <header className="flex flex-col md:flex-row md:items-center justify-between gap-4 animate-fade-in-down">
+              <div>
+                <h1 className="text-2xl md:text-3xl font-bold text-white tracking-tight">
+                  Olá, Dr(a). {user?.firstName || 'Advogado'}
+                </h1>
+                <p className="text-slate-400 mt-1 text-sm md:text-base flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
+                  Painel de Controle Inteligente
+                </p>
               </div>
+              
+              {/* Botão de Ação Rápida (Exemplo) */}
+              <div className="hidden md:block">
+                 <button className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-sm transition-colors border border-slate-700">
+                    + Nova Pasta
+                 </button>
+              </div>
+            </header>
+
+            {/* GRID PRINCIPAL: 
+                - Mobile: 1 coluna (tudo empilhado)
+                - Desktop (lg): 3 colunas (Upload na esq, Gráficos na dir) 
+            */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 md:gap-8">
+              
+              {/* COLUNA ESQUERDA (Upload & Resultados) - Ocupa 2/3 no Desktop */}
+              <div className="lg:col-span-2 space-y-6">
+                
+                {/* Card de Upload */}
+                <div className="bg-slate-900/50 backdrop-blur-xl border border-slate-800/60 rounded-2xl p-1 shadow-2xl ring-1 ring-white/5">
+                  <FileUpload onAnalyze={handleAnalyze} loading={loading} />
+                </div>
+
+                {/* Resultado da Análise (Só aparece se tiver análise) */}
+                {analysis && (
+                  <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 md:p-8 shadow-xl animate-fade-in-up relative overflow-hidden group">
+                    {/* Efeito de brilho no fundo */}
+                    <div className="absolute top-0 right-0 w-64 h-64 bg-blue-500/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 pointer-events-none"></div>
+
+                    <h2 className="text-xl font-semibold text-blue-400 mb-6 flex items-center gap-2 relative z-10">
+                      <span className="p-1.5 bg-blue-500/10 rounded-lg text-blue-400">
+                        ⚖️
+                      </span> 
+                      Análise Jurídica
+                    </h2>
+
+                    {/* Conteúdo do Texto */}
+                    <div className="prose prose-invert prose-blue max-w-none text-slate-300 leading-relaxed space-y-4">
+                      {/* Renderização segura do resumo */}
+                      <p className="whitespace-pre-wrap text-sm md:text-base text-justify">
+                        {analysis.summary}
+                      </p>
+                      
+                      {/* Exibição da Probabilidade (Se existir) */}
+                      {analysis.riskScore !== undefined && (
+                        <div className="mt-6 p-4 bg-slate-950/50 rounded-xl border border-slate-800">
+                           <div className="flex justify-between items-center mb-2">
+                              <span className="text-sm font-medium text-slate-400">Probabilidade de Êxito</span>
+                              <span className="text-lg font-bold text-white">{analysis.riskScore}%</span>
+                           </div>
+                           <div className="w-full bg-slate-800 rounded-full h-2.5">
+                              <div 
+                                className="bg-gradient-to-r from-blue-600 to-emerald-500 h-2.5 rounded-full transition-all duration-1000" 
+                                style={{ width: `${analysis.riskScore}%` }}
+                              ></div>
+                           </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* COLUNA DIREITA (Widgets/Gráficos) - Ocupa 1/3 no Desktop */}
+              <div className="space-y-6">
+                 
+                 {/* Exemplo de Widget Fixo */}
+                 <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-6 h-fit sticky top-8 backdrop-blur-sm">
+                    <h3 className="font-semibold text-slate-200 mb-4 flex items-center gap-2">
+                      <span className="w-1 h-5 bg-blue-500 rounded-full"></span>
+                      Estatísticas
+                    </h3>
+                    
+                    {/* Placeholder para gráfico futuro */}
+                    <div className="flex flex-col items-center justify-center py-8 text-center space-y-3 border-2 border-dashed border-slate-800 rounded-xl bg-slate-950/30">
+                      <div className="p-3 bg-slate-800 rounded-full text-slate-400">
+                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>
+                      </div>
+                      <span className="text-sm text-slate-500">Histórico em breve</span>
+                    </div>
+
+                    <div className="mt-6 pt-6 border-t border-slate-800">
+                       <h4 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Dica Rápida</h4>
+                       <p className="text-xs text-slate-400 leading-relaxed">
+                         Arraste arquivos PDF ou TXT diretamente para a área de upload para economizar tempo.
+                       </p>
+                    </div>
+                 </div>
+
+              </div>
+
             </div>
           </div>
-        ) : (
-          // RESULTADOS (Resumo simplificado para caber na resposta, use o seu layout bonito aqui se preferir)
-          <div className="animate-fade-in-up space-y-6 pb-10">
-             <div className="flex justify-between items-center bg-white dark:bg-slate-800 p-6 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700">
-                <div>
-                    <h3 className="text-lg font-bold text-slate-800 dark:text-white">{result.metadata?.filename || "Documento Analisado"}</h3>
-                    <span className="text-xs text-blue-600 dark:text-blue-400 uppercase font-bold">Relatório Gerado</span>
-                </div>
-                <button onClick={() => setResult(null)} className="text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white underline">Nova Análise</button>
-             </div>
-
-             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                <div className="lg:col-span-2 bg-white dark:bg-slate-800 p-6 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700">
-                    <h4 className="flex items-center gap-2 text-slate-800 dark:text-white font-bold text-lg mb-4 border-b border-slate-100 dark:border-slate-700 pb-3">
-                        <FileText size={20} className="text-blue-600 dark:text-blue-500"/> Análise Jurídica
-                    </h4>
-                    <div className="text-slate-600 dark:text-slate-300 prose prose-slate dark:prose-invert max-w-none">
-                        <ReactMarkdown rehypePlugins={[rehypeSanitize]}>
-                            {result.aiSummary || result.analysis}
-                        </ReactMarkdown>
-                    </div>
-                </div>
-
-                <div className="space-y-6">
-                    <div className="bg-white dark:bg-slate-800 p-6 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 text-center">
-                        <h4 className="flex items-center justify-center gap-2 text-slate-800 dark:text-white font-bold mb-4">
-                            <Zap size={18} className="text-yellow-500"/> Probabilidade de Êxito
-                        </h4>
-                        <span className="text-5xl font-bold text-slate-800 dark:text-white">{riskScore}%</span>
-                    </div>
-                    
-                    {chartData && (
-                        <div className="bg-white dark:bg-slate-800 p-6 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700">
-                             <h4 className="text-slate-800 dark:text-white font-bold mb-4 text-center">Palavras-Chave</h4>
-                             <div className="h-40 relative"><Doughnut data={chartData} options={{ maintainAspectRatio: false }} /></div>
-                        </div>
-                    )}
-                </div>
-             </div>
-          </div>
-        )}
+        </div>
       </main>
     </div>
   );
