@@ -1,16 +1,17 @@
 import axios from 'axios';
 
-// 1. Configuração Base do Axios
-// Tenta pegar a URL do .env, senão usa o localhost ou a URL do Render
+// Define a URL da API (usa a do Render se estiver em produção)
+const API_URL = import.meta.env.VITE_API_URL || 'https://legalmind-api.onrender.com/api';
+
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || 'https://legalmind-api.onrender.com/api',
+  baseURL: API_URL,
   headers: {
     'Content-Type': 'application/json',
   },
-  timeout: 120000, // 2 minutos (Importante para IA demorada)
+  timeout: 120000, // 2 minutos para não dar timeout na IA
 });
 
-// 2. Interceptor: Adiciona o Token em toda requisição automaticamente
+// Adiciona o Token automaticamente (se o usuário estiver logado)
 api.interceptors.request.use(
   (config) => {
     const user = localStorage.getItem('user');
@@ -25,9 +26,8 @@ api.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
-// 3. Funções de API Exportadas
+// --- FUNÇÕES EXPORTADAS (Isso corrige o erro do Dashboard) ---
 
-// --- AUTENTICAÇÃO ---
 export const loginUser = async (credentials) => {
   const response = await api.post('/users/login', credentials);
   return response.data;
@@ -38,21 +38,13 @@ export const registerUser = async (userData) => {
   return response.data;
 };
 
-// --- ANÁLISE JURÍDICA (A função que estava faltando!) ---
+// AQUI ESTÁ A FUNÇÃO QUE FALTAVA:
 export const analyzeDocument = async (formData) => {
-  // Nota: formData precisa de headers especiais, mas o axios detecta automaticamente
-  // quando passamos um objeto FormData.
   const response = await api.post('/analyze', formData, {
     headers: {
-      'Content-Type': 'multipart/form-data', // Obrigatório para envio de arquivos
+      'Content-Type': 'multipart/form-data',
     },
   });
-  return response.data;
-};
-
-// --- OUTRAS FUNÇÕES ---
-export const getHistory = async () => {
-  const response = await api.get('/jurisprudence/history'); // Ajuste conforme sua rota de histórico
   return response.data;
 };
 
