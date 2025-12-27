@@ -6,7 +6,7 @@ const generateLegalAnalysis = async (text, filename) => {
   
   // AQUI ESTAVA O ERRO: "gemini-pro" é um apelido que foi removido em algumas regiões.
   // AQUI ESTÁ A SOLUÇÃO: Usamos o nome de batismo exato do modelo.
-  const model = "gemini-1.0-pro"; 
+  const model = "gemini-1.5-flash-001"; 
   
   console.log(`🤖 IA: Conectando ao modelo técnico: ${model}...`);
 
