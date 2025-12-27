@@ -1,53 +1,69 @@
-const asyncHandler = require('express-async-handler');
-const Analysis = require('../models/Analysis'); // Importa o modelo que criamos acima
+const Analysis = require('../models/Analysis');
 const { generateLegalAnalysis } = require('../services/aiService');
 const fs = require('fs');
 const pdfParse = require('pdf-parse');
 
-const analyzeDocument = asyncHandler(async (req, res) => {
-  if (!req.file) { res.status(400); throw new Error('Arquivo ausente'); }
-
+// @desc    Analisar documento e SALVAR no histórico
+const analyzeDocument = async (req, res) => {
   try {
+    if (!req.file) {
+      return res.status(400).json({ message: 'Nenhum arquivo enviado' });
+    }
+
     let text = '';
-    // Leitura do arquivo (PDF ou Texto)
+    
+    // 1. Ler o arquivo (PDF ou Texto)
     if (req.file.mimetype === 'application/pdf') {
-      const data = await pdfParse(fs.readFileSync(req.file.path));
+      const dataBuffer = fs.readFileSync(req.file.path);
+      const data = await pdfParse(dataBuffer);
       text = data.text;
     } else {
       text = fs.readFileSync(req.file.path, 'utf8');
     }
 
-    // Chama a IA
-    const aiResult = await generateLegalAnalysis(text, req.file.originalname);
+    // 2. Chamar a IA
+    const analysisResult = await generateLegalAnalysis(text, req.file.originalname);
 
-    // --- SALVA NO BANCO DE DADOS ---
-    await Analysis.create({
+    // 3. Salvar no Banco
+    const savedAnalysis = await Analysis.create({
       user: req.user._id,
       filename: req.file.originalname,
-      summary: aiResult.summary,
-      riskScore: aiResult.riskScore,
-      verdict: aiResult.verdict,
-      strategicAdvice: aiResult.strategicAdvice,
-      fullAnalysis: aiResult
+      summary: analysisResult.summary,
+      riskScore: analysisResult.riskScore,
+      verdict: analysisResult.verdict,
+      strategicAdvice: analysisResult.strategicAdvice,
+      fullAnalysis: analysisResult
     });
 
-    // Limpa arquivo temporário
-    fs.unlinkSync(req.file.path);
-    
-    // Devolve resposta
-    res.json(aiResult);
+    // 4. Limpar arquivo temporário
+    if (fs.existsSync(req.file.path)) {
+      fs.unlinkSync(req.file.path);
+    }
+
+    // 5. Retornar
+    res.json(savedAnalysis.fullAnalysis);
 
   } catch (error) {
-    if (req.file && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
-    res.status(500);
-    throw new Error(error.message);
+    // Limpeza em caso de erro
+    if (req.file && fs.existsSync(req.file.path)) {
+      try { fs.unlinkSync(req.file.path); } catch (e) {}
+    }
+    
+    console.error("Erro no controller:", error);
+    res.status(500).json({ 
+      message: error.message || 'Erro no processamento do arquivo' 
+    });
   }
-});
+};
 
-// Função para listar os casos salvos
-const getHistory = asyncHandler(async (req, res) => {
-  const history = await Analysis.find({ user: req.user._id }).sort({ createdAt: -1 });
-  res.json(history);
-});
+// @desc    Buscar histórico do usuário
+const getHistory = async (req, res) => {
+  try {
+    const history = await Analysis.find({ user: req.user._id }).sort({ createdAt: -1 });
+    res.json(history);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
 
 module.exports = { analyzeDocument, getHistory };
