@@ -23,6 +23,7 @@ import ResetPassword from './pages/ResetPassword';
 import NotFound from './pages/NotFound';
 import Terms from './pages/Terms';
 import Privacy from './pages/Privacy';
+import Sidebar from './components/Sidebar';
 
 function App() {
   return (
