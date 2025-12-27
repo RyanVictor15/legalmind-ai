@@ -2,23 +2,41 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Define base body color for automatic transition */
-body {
-  @apply bg-white text-slate-900 transition-colors duration-300;
+/* --- FASE 1: MOBILE TWEAKS --- */
+
+@layer base {
+  /* Evita que o iOS dê zoom quando você clica num input */
+  input, textarea, select {
+    font-size: 16px !important; 
+  }
+
+  /* Garante área de toque mínima de 44px para botões (Padrão Apple) */
+  button {
+    min-height: 44px;
+    min-width: 44px;
+  }
+  
+  /* Proteção para iPhone X e mais novos (Safe Area) */
+  body {
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+  }
 }
 
-/* When 'dark' class is present, body changes to dark mode */
-.dark body {
-  @apply bg-slate-950 text-slate-100;
-}
-
-/* Custom Scrollbar (Optional) */
+/* Scrollbar bonita e fina */
 ::-webkit-scrollbar {
   width: 8px;
+  height: 8px;
 }
 ::-webkit-scrollbar-track {
-  @apply bg-transparent;
+  background: #0f172a; 
 }
 ::-webkit-scrollbar-thumb {
-  @apply bg-slate-300 rounded-full dark:bg-slate-700;
+  background: #334155; 
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #475569; 
 }

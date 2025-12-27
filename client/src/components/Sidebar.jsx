@@ -1,96 +1,112 @@
 import React, { useState } from 'react';
-import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, History, Scale, User, LogOut, Menu, X, Zap } from 'lucide-react';
+import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { 
+  LayoutDashboard, 
+  History, 
+  Scale, 
+  User, 
+  LogOut, 
+  Menu, 
+  X 
+} from 'lucide-react';
 
 const Sidebar = () => {
-  const [isOpen, setIsOpen] = useState(false); // Controle de abrir/fechar
-  const { logout, user } = useAuth();
+  const { signOut } = useAuth();
   const location = useLocation();
-  const navigate = useNavigate();
-
-  const handleLogout = () => {
-    logout();
-    navigate('/login');
-  };
+  const [isOpen, setIsOpen] = useState(false); // Estado para abrir/fechar menu mobile
 
   const menuItems = [
-    { icon: LayoutDashboard, label: 'Dashboard', path: '/dashboard' },
-    { icon: History, label: 'Meus Casos', path: '/history' },
-    { icon: Scale, label: 'Jurisprudência', path: '/jurisprudence' },
-    { icon: User, label: 'Meu Perfil', path: '/profile' },
+    { path: '/dashboard', icon: <LayoutDashboard size={20} />, label: 'Dashboard' },
+    { path: '/history', icon: <History size={20} />, label: 'Meus Casos' },
+    // { path: '/jurisprudence', icon: <Scale size={20} />, label: 'Jurisprudência' }, // (Futuro)
+    // { path: '/profile', icon: <User size={20} />, label: 'Meu Perfil' }, // (Futuro)
   ];
 
   const isActive = (path) => location.pathname === path;
 
+  // Função para fechar o menu ao clicar num link (UX Mobile)
+  const handleLinkClick = () => {
+    setIsOpen(false);
+  };
+
   return (
     <>
-      {/* Botão Flutuante (Apenas Mobile) */}
+      {/* --- BOTÃO HAMBÚRGUER (SÓ MOBILE) --- */}
+      {/* Fica flutuando no topo esquerdo quando em telas pequenas */}
       <button 
-        onClick={() => setIsOpen(!isOpen)}
-        className="md:hidden fixed top-4 left-4 z-50 p-2 bg-slate-800 text-white rounded-md shadow-lg border border-slate-700"
+        onClick={() => setIsOpen(true)}
+        className="md:hidden fixed top-4 left-4 z-50 p-2 bg-slate-800 text-white rounded-lg shadow-lg border border-slate-700 hover:bg-slate-700 transition-colors"
+        aria-label="Abrir Menu"
       >
-        {isOpen ? <X size={24} /> : <Menu size={24} />}
+        <Menu size={24} />
       </button>
 
-      {/* Fundo Escuro ao abrir (Overlay) */}
+      {/* --- OVERLAY ESCURO (SÓ MOBILE) --- */}
+      {/* Clicar fora fecha o menu */}
       {isOpen && (
         <div 
-          className="fixed inset-0 bg-black/60 z-40 md:hidden backdrop-blur-sm"
+          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 md:hidden animate-fade-in"
           onClick={() => setIsOpen(false)}
         />
       )}
 
-      {/* A Barra Lateral em si */}
-      <aside 
-        className={`
-          fixed inset-y-0 left-0 z-40 w-64 bg-slate-900 text-white border-r border-slate-800
-          transform transition-transform duration-300 ease-in-out
-          ${isOpen ? 'translate-x-0' : '-translate-x-full'} 
-          md:translate-x-0 md:static 
-        `}
-      >
-        <div className="flex flex-col h-full">
-          {/* Cabeçalho do Menu */}
-          <div className="h-20 flex items-center justify-center border-b border-slate-800 bg-slate-950/50">
-            <h1 className="text-xl font-bold text-blue-400">LegalMind AI</h1>
+      {/* --- A BARRA LATERAL (SIDEBAR) --- */}
+      <aside className={`
+        fixed md:static inset-y-0 left-0 z-50
+        w-64 bg-slate-900 border-r border-slate-800
+        transform transition-transform duration-300 ease-in-out
+        ${isOpen ? 'translate-x-0' : '-translate-x-full'} 
+        md:translate-x-0 
+        flex flex-col h-screen
+      `}>
+        
+        {/* Cabeçalho do Menu */}
+        <div className="p-6 border-b border-slate-800 flex justify-between items-center">
+          <div>
+            <h1 className="text-xl font-bold bg-gradient-to-r from-blue-400 to-blue-600 bg-clip-text text-transparent">
+              LegalMind AI
+            </h1>
+            <p className="text-xs text-slate-500">Inteligência Jurídica</p>
           </div>
+          
+          {/* Botão Fechar (Só Mobile) */}
+          <button 
+            onClick={() => setIsOpen(false)}
+            className="md:hidden text-slate-400 hover:text-white"
+          >
+            <X size={24} />
+          </button>
+        </div>
 
-          {/* Links de Navegação */}
-          <nav className="flex-1 px-4 py-6 space-y-2 overflow-y-auto">
-            {menuItems.map((item) => (
-              <Link
-                key={item.path}
-                to={item.path}
-                onClick={() => setIsOpen(false)} // Fecha ao clicar (Mobile)
-                className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${
-                  isActive(item.path) 
-                    ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/20' 
-                    : 'text-slate-400 hover:bg-slate-800 hover:text-white'
-                }`}
-              >
-                <item.icon size={20} />
-                <span className="font-medium text-sm">{item.label}</span>
-              </Link>
-            ))}
-          </nav>
+        {/* Links de Navegação */}
+        <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
+          {menuItems.map((item) => (
+            <Link
+              key={item.path}
+              to={item.path}
+              onClick={handleLinkClick}
+              className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${
+                isActive(item.path)
+                  ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/20'
+                  : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+              }`}
+            >
+              {item.icon}
+              <span className="font-medium">{item.label}</span>
+            </Link>
+          ))}
+        </nav>
 
-          {/* Rodapé (Usuário) */}
-          <div className="p-4 border-t border-slate-800 bg-slate-900/50">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3 overflow-hidden">
-                <div className="w-8 h-8 rounded-full bg-blue-500/20 flex items-center justify-center border border-blue-500/30">
-                  <span className="text-xs font-bold text-blue-400">{user?.firstName?.charAt(0) || 'U'}</span>
-                </div>
-                <div className="flex flex-col">
-                  <span className="text-xs font-bold text-white truncate w-24">Dr. {user?.firstName}</span>
-                </div>
-              </div>
-              <button onClick={handleLogout} className="text-slate-500 hover:text-red-400">
-                <LogOut size={18} />
-              </button>
-            </div>
-          </div>
+        {/* Rodapé do Menu (Logout) */}
+        <div className="p-4 border-t border-slate-800">
+          <button
+            onClick={signOut}
+            className="flex items-center gap-3 px-4 py-3 w-full text-slate-400 hover:text-red-400 hover:bg-red-400/10 rounded-xl transition-all group"
+          >
+            <LogOut size={20} className="group-hover:-translate-x-1 transition-transform" />
+            <span className="font-medium">Sair da Conta</span>
+          </button>
         </div>
       </aside>
     </>
