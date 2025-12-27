@@ -1,137 +1,89 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { FileText, Loader2, Download, Eye, Menu } from 'lucide-react';
-import api from '../services/api'; 
-import Sidebar from '../components/Sidebar'; // <--- O NOVO COMPONENTE
+import Sidebar from '../components/Sidebar';
+import api from '../services/api';
+import { FileText, Clock, AlertCircle } from 'lucide-react';
 
 const History = () => {
-  const [documents, setDocuments] = useState([]);
+  const [cases, setCases] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [sidebarOpen, setSidebarOpen] = useState(false);
-  const navigate = useNavigate();
-  
-  const API_BASE = import.meta.env.VITE_API_URL 
-    ? import.meta.env.VITE_API_URL.replace('/api', '') 
-    : 'http://localhost:5000';
 
   useEffect(() => {
-    const fetchHistory = async () => {
+    const fetchCases = async () => {
       try {
         const { data } = await api.get('/analyze/history');
-        if (data.status === 'success') {
-             setDocuments(data.data);
-        } else if (Array.isArray(data)) {
-             setDocuments(data);
-        }
+        setCases(data);
       } catch (error) {
         console.error("Erro ao buscar histórico:", error);
       } finally {
         setLoading(false);
       }
     };
-    fetchHistory();
+    fetchCases();
   }, []);
 
-  const openAnalysis = (doc) => {
-    navigate('/dashboard', { state: { document: doc } });
-  };
-
   return (
-    <div className="flex min-h-screen bg-slate-50 dark:bg-slate-900 font-inter transition-colors duration-300">
-      
-      <Sidebar isOpen={sidebarOpen} setIsOpen={setSidebarOpen} />
+    <div className="flex min-h-screen bg-slate-950 text-slate-100 font-sans">
+      <Sidebar />
+      <main className="flex-1 p-4 md:p-8 overflow-y-auto h-screen relative">
+        
+        {/* Espaçador Mobile */}
+        <div className="md:hidden h-16 w-full shrink-0"></div>
 
-      <main className="flex-1 p-8 h-screen overflow-y-auto">
-        {/* Mobile Header */}
-        <div className="md:hidden flex items-center mb-6">
-            <button onClick={() => setSidebarOpen(true)} className="p-2 text-slate-600 dark:text-slate-400 mr-4">
-                <Menu size={24} />
-            </button>
-            <h2 className="text-xl font-bold text-slate-800 dark:text-white">Meus Casos</h2>
-        </div>
-
-        <header className="flex justify-between items-center mb-8">
-          <div>
-            <h2 className="text-2xl font-bold text-slate-800 dark:text-white">Histórico de Análises</h2>
-            <p className="text-slate-500 dark:text-slate-400">Acesse e baixe seus documentos processados.</p>
-          </div>
-        </header>
+        <h1 className="text-2xl md:text-3xl font-bold mb-8 text-white">Meus Casos</h1>
 
         {loading ? (
-            <div className="flex justify-center items-center h-64">
-                <Loader2 className="animate-spin text-blue-600" size={40} />
-            </div>
-        ) : documents.length === 0 ? (
-            <div className="text-center py-20 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 border-dashed">
-                <FileText size={48} className="mx-auto text-slate-300 mb-4"/>
-                <h3 className="text-lg font-medium text-slate-600 dark:text-slate-400">Nenhum caso encontrado</h3>
-                <button onClick={() => navigate('/dashboard')} className="bg-blue-600 text-white px-6 py-2 rounded-lg font-medium hover:bg-blue-700 mt-4">
-                    Nova Análise
-                </button>
-            </div>
+          <div className="text-slate-500 animate-pulse">Carregando histórico...</div>
+        ) : cases.length === 0 ? (
+          <div className="p-8 border border-dashed border-slate-800 rounded-xl text-center">
+            <p className="text-slate-400 mb-2">Nenhum caso analisado ainda.</p>
+            <p className="text-xs text-slate-600">Vá para o Dashboard e envie um documento.</p>
+          </div>
         ) : (
-            <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden">
-                <table className="w-full text-left border-collapse">
-                    <thead className="bg-slate-50 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700">
-                        <tr>
-                            <th className="p-5 text-xs font-bold text-slate-500 uppercase">Documento</th>
-                            <th className="p-5 text-xs font-bold text-slate-500 uppercase">Data</th>
-                            <th className="p-5 text-xs font-bold text-slate-500 uppercase">Veredito</th>
-                            <th className="p-5 text-xs font-bold text-slate-500 uppercase">Ações</th>
-                        </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
-                        {documents.map((doc) => (
-                            <tr 
-                                key={doc._id} 
-                                onClick={() => openAnalysis(doc)}
-                                className="hover:bg-blue-50 dark:hover:bg-slate-700 transition duration-150 cursor-pointer group"
-                            >
-                                <td className="p-5 font-medium text-slate-800 dark:text-white flex items-center gap-3">
-                                    <div className="p-2 bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-300 group-hover:bg-blue-200 group-hover:text-blue-700 rounded transition">
-                                        <FileText size={18}/>
-                                    </div>
-                                    {doc.filename || doc.title || 'Documento Sem Título'}
-                                </td>
-                                <td className="p-5 text-slate-500 dark:text-slate-400 text-sm">
-                                    {new Date(doc.createdAt).toLocaleDateString('pt-BR')}
-                                </td>
-                                <td className="p-5">
-                                    <span className={`px-3 py-1 rounded-full text-xs font-bold border ${
-                                        (doc.verdict === 'Favorable' || doc.verdict === 'Favorável') ? 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800' : 
-                                        (doc.verdict === 'Unfavorable' || doc.verdict === 'Desfavorável') ? 'bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-400 border-red-200 dark:border-red-800' : 
-                                        'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-600'
-                                    }`}>
-                                        {doc.verdict === 'Favorable' ? 'FAVORÁVEL' : doc.verdict === 'Unfavorable' ? 'DESFAVORÁVEL' : 'NEUTRO'}
-                                    </span>
-                                </td>
-                                <td className="p-5 flex items-center gap-2">
-                                    <button 
-                                        onClick={(e) => { e.stopPropagation(); openAnalysis(doc); }}
-                                        className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-100 dark:hover:bg-blue-900/30 rounded-full transition"
-                                        title="Ver Análise"
-                                    >
-                                        <Eye size={20}/>
-                                    </button>
+          <div className="grid gap-4">
+            {cases.map((c) => (
+              <div key={c._id} className="bg-slate-900 p-6 rounded-xl border border-slate-800 hover:border-blue-500/50 transition-all shadow-lg">
+                <div className="flex flex-col md:flex-row justify-between gap-4 md:items-center">
+                  
+                  <div className="flex items-start gap-4">
+                    <div className="p-3 bg-slate-950 rounded-lg border border-slate-800">
+                      <FileText className="text-blue-400" size={20} />
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-white text-lg">{c.filename}</h3>
+                      <div className="flex items-center gap-2 mt-1">
+                        <Clock size={12} className="text-slate-500" />
+                        <span className="text-xs text-slate-500">
+                          {new Date(c.createdAt).toLocaleDateString('pt-BR')} às {new Date(c.createdAt).toLocaleTimeString('pt-BR').slice(0,5)}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-center gap-6">
+                    <div className="text-center">
+                      <span className="text-[10px] text-slate-500 uppercase font-bold">Êxito</span>
+                      <p className="text-xl font-bold text-white">{c.riskScore}%</p>
+                    </div>
 
-                                    {doc.filePath && (
-                                        <a 
-                                            href={`${API_BASE}/${doc.filePath}`} 
-                                            target="_blank" 
-                                            rel="noopener noreferrer"
-                                            onClick={(e) => e.stopPropagation()} 
-                                            className="p-2 text-slate-400 hover:text-green-600 hover:bg-green-100 dark:hover:bg-green-900/30 rounded-full transition"
-                                            title="Baixar Original"
-                                        >
-                                            <Download size={20}/>
-                                        </a>
-                                    )}
-                                </td>
-                            </tr>
-                        ))}
-                    </tbody>
-                </table>
-            </div>
+                    <div className={`px-4 py-2 rounded-full text-xs font-bold border ${
+                      c.verdict === 'Favorável' || c.verdict === 'Favorable' 
+                        ? 'bg-green-500/10 text-green-400 border-green-500/20' 
+                        : 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20'
+                    }`}>
+                      {c.verdict || 'Analisado'}
+                    </div>
+                  </div>
+
+                </div>
+                
+                {c.summary && (
+                  <div className="mt-4 pt-4 border-t border-slate-800/50">
+                    <p className="text-sm text-slate-400 line-clamp-2">{c.summary}</p>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
         )}
       </main>
     </div>

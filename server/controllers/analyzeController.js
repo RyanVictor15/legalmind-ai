@@ -1,89 +1,53 @@
-const fs = require('fs');
-const pdf = require('pdf-parse');
-const Document = require('../models/Document');
-const User = require('../models/User'); // Importar User para atualizar contagem
+const asyncHandler = require('express-async-handler');
+const Analysis = require('../models/Analysis'); // Importa o modelo que criamos acima
 const { generateLegalAnalysis } = require('../services/aiService');
+const fs = require('fs');
+const pdfParse = require('pdf-parse');
 
-// @desc    Analisar Documento com IA
-// @route   POST /api/analyze
-// @access  Protected
-const analyzeDocument = async (req, res) => {
-  let filePath = null;
+const analyzeDocument = asyncHandler(async (req, res) => {
+  if (!req.file) { res.status(400); throw new Error('Arquivo ausente'); }
 
   try {
-    // 1. Validar Usuário e Limites (LÓGICA NOVA)
-    const user = await User.findById(req.user._id);
-    
-    // Se não for PRO e já tiver usado 3 ou mais vezes -> BLOQUEIA
-    if (!user.isPro && user.usageCount >= 3) {
-        // Se houver arquivo uploadado, deleta para não acumular lixo
-        if (req.file) fs.unlinkSync(req.file.path);
-        
-        return res.status(403).json({ 
-            status: 'error', 
-            message: 'Limite do plano gratuito atingido (3/3). Faça upgrade para continuar.',
-            code: 'LIMIT_REACHED'
-        });
-    }
-
-    // 2. Validar Upload
-    if (!req.file) {
-      return res.status(400).json({ status: 'error', message: 'Nenhum arquivo enviado.' });
-    }
-    filePath = req.file.path;
-
-    // 3. Extrair Texto
-    let extractedText = '';
+    let text = '';
+    // Leitura do arquivo (PDF ou Texto)
     if (req.file.mimetype === 'application/pdf') {
-      const dataBuffer = fs.readFileSync(filePath);
-      const data = await pdf(dataBuffer);
-      extractedText = data.text;
+      const data = await pdfParse(fs.readFileSync(req.file.path));
+      text = data.text;
     } else {
-      extractedText = fs.readFileSync(filePath, 'utf8');
+      text = fs.readFileSync(req.file.path, 'utf8');
     }
 
-    if (!extractedText.trim()) {
-      throw new Error('O documento parece estar vazio ou ilegível.');
-    }
+    // Chama a IA
+    const aiResult = await generateLegalAnalysis(text, req.file.originalname);
 
-    // 4. Chamar Serviço de IA
-    const analysisResult = await generateLegalAnalysis(extractedText, req.file.originalname);
-
-    // 5. Salvar no Banco
-    const newDoc = await Document.create({
-      userId: req.user._id,
+    // --- SALVA NO BANCO DE DADOS ---
+    await Analysis.create({
+      user: req.user._id,
       filename: req.file.originalname,
-      filePath: filePath,
-      originalText: extractedText.substring(0, 1000), // Preview
-      
-      // Dados da IA
-      aiSummary: analysisResult.summary,
-      riskAnalysis: analysisResult.riskScore,
-      verdict: analysisResult.verdict,
-      keywords: analysisResult.keywords,
-      strategicAdvice: analysisResult.strategicAdvice
+      summary: aiResult.summary,
+      riskScore: aiResult.riskScore,
+      verdict: aiResult.verdict,
+      strategicAdvice: aiResult.strategicAdvice,
+      fullAnalysis: aiResult
     });
 
-    // 6. Incrementar Uso do Usuário (LÓGICA NOVA)
-    // Usamos $inc para ser atômico e seguro
-    await User.findByIdAndUpdate(req.user._id, { $inc: { usageCount: 1 } });
-
-    res.json({
-      status: 'success',
-      data: newDoc
-    });
+    // Limpa arquivo temporário
+    fs.unlinkSync(req.file.path);
+    
+    // Devolve resposta
+    res.json(aiResult);
 
   } catch (error) {
-    console.error('Controller Error:', error);
-    if (filePath && fs.existsSync(filePath)) {
-        // Limpeza em caso de erro (opcional, mas boa prática)
-        // fs.unlinkSync(filePath); 
-    }
-    res.status(500).json({ 
-      status: 'error', 
-      message: error.message || 'Erro ao processar documento.' 
-    });
+    if (req.file && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
+    res.status(500);
+    throw new Error(error.message);
   }
-};
+});
 
-module.exports = { analyzeDocument };
+// Função para listar os casos salvos
+const getHistory = asyncHandler(async (req, res) => {
+  const history = await Analysis.find({ user: req.user._id }).sort({ createdAt: -1 });
+  res.json(history);
+});
+
+module.exports = { analyzeDocument, getHistory };
