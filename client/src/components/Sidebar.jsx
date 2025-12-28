@@ -11,14 +11,15 @@ import {
   UserCircle 
 } from 'lucide-react';
 
+// IMPORTAÇÃO CRUCIAL: O seu botão de tema original
+import ThemeToggle from './ThemeToggle'; 
+
 const Sidebar = () => {
   const location = useLocation();
-  const [isOpen, setIsOpen] = useState(false);
+  const [isOpen, setIsOpen] = useState(false); // Estado do Menu Mobile
 
-  // Fecha o menu quando clica em um link (para mobile)
   const closeMenu = () => setIsOpen(false);
 
-  // Links do sistema
   const menuItems = [
     { path: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
     { path: '/analyze', icon: FileText, label: 'Nova Análise' },
@@ -36,46 +37,59 @@ const Sidebar = () => {
 
   return (
     <>
-      {/* --- 1. HEADER MOBILE (Só aparece em telas pequenas) --- */}
-      <div className="md:hidden fixed top-0 left-0 right-0 h-16 bg-slate-950 border-b border-slate-800 flex items-center justify-between px-4 z-50 shadow-md">
-        <div className="flex items-center gap-2 font-bold text-white text-lg">
-          <Scale className="text-blue-500" size={24} />
+      {/* --- HEADER MOBILE (Fixo no topo, só aparece em telas pequenas) --- */}
+      <div className="md:hidden fixed top-0 left-0 right-0 h-16 bg-white dark:bg-slate-950 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between px-4 z-50 transition-colors duration-300">
+        <div className="flex items-center gap-2 font-bold text-slate-900 dark:text-white text-lg">
+          <Scale className="text-blue-600 dark:text-blue-500" size={24} />
           <span>LegalMind</span>
         </div>
-        <button 
-          onClick={() => setIsOpen(!isOpen)}
-          className="p-2 text-slate-300 hover:text-white hover:bg-slate-800 rounded-lg transition-colors active:scale-95"
-          aria-label="Menu"
-        >
-          {isOpen ? <X size={24} /> : <Menu size={24} />}
-        </button>
+        
+        <div className="flex items-center gap-2">
+           {/* Usa o seu botão de tema aqui no mobile */}
+           <div className="scale-90">
+             <ThemeToggle />
+           </div>
+           
+           <button 
+            onClick={() => setIsOpen(!isOpen)}
+            className="p-2 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
+           >
+             {isOpen ? <X size={24} /> : <Menu size={24} />}
+           </button>
+        </div>
       </div>
 
-      {/* --- 2. OVERLAY ESCURO (Fundo preto ao abrir menu no mobile) --- */}
+      {/* --- OVERLAY (Fundo escuro quando abre o menu) --- */}
       {isOpen && (
         <div 
-          className="fixed inset-0 bg-black/60 z-40 md:hidden backdrop-blur-sm transition-opacity"
+          className="fixed inset-0 bg-black/50 z-40 md:hidden backdrop-blur-sm"
           onClick={closeMenu}
         />
       )}
 
-      {/* --- 3. SIDEBAR (Navegação Principal) --- */}
+      {/* --- SIDEBAR (Gaveta Mobile + Lateral Desktop) --- */}
       <aside className={`
         fixed md:static inset-y-0 left-0 z-50
-        w-64 bg-slate-900 border-r border-slate-800 flex flex-col
+        w-64 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 flex flex-col
         transform transition-transform duration-300 ease-in-out shadow-2xl md:shadow-none
         ${isOpen ? 'translate-x-0' : '-translate-x-full'} 
         md:translate-x-0 
-        pt-16 md:pt-0 /* Espaço para o header mobile */
+        pt-16 md:pt-0 /* Espaço extra no mobile por causa do header */
       `}>
         
         {/* Logo Desktop */}
-        <div className="h-20 flex items-center px-8 border-b border-slate-800 hidden md:flex">
-          <Scale className="text-blue-500 mr-3" size={28} />
-          <span className="text-xl font-bold text-white tracking-tight">LegalMind</span>
+        <div className="h-20 flex items-center justify-between px-6 border-b border-slate-200 dark:border-slate-800 hidden md:flex">
+          <div className="flex items-center gap-2 font-bold text-slate-900 dark:text-white text-lg">
+             <Scale className="text-blue-600 dark:text-blue-500" size={24} />
+             <span>LegalMind</span>
+          </div>
+          {/* Botão de Tema Desktop */}
+          <div className="scale-90">
+             <ThemeToggle />
+          </div>
         </div>
 
-        {/* Lista de Links */}
+        {/* Links */}
         <nav className="flex-1 px-4 py-6 space-y-2 overflow-y-auto">
           {menuItems.map((item) => (
             <Link
@@ -85,35 +99,35 @@ const Sidebar = () => {
               className={`
                 flex items-center gap-3 px-4 py-3.5 rounded-xl transition-all duration-200 font-medium
                 ${isActive(item.path) 
-                  ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/20' 
-                  : 'text-slate-400 hover:bg-slate-800 hover:text-white hover:translate-x-1'
+                  ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/30' 
+                  : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white'
                 }
               `}
             >
-              <item.icon size={20} className={isActive(item.path) ? 'animate-pulse' : ''} />
+              <item.icon size={20} />
               <span>{item.label}</span>
             </Link>
           ))}
         </nav>
 
-        {/* Rodapé da Sidebar */}
-        <div className="p-4 border-t border-slate-800 bg-slate-900/50">
+        {/* User Info */}
+        <div className="p-4 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50">
           <div className="flex items-center gap-3 px-4 py-3 mb-2">
-            <div className="w-8 h-8 rounded-full bg-slate-700 flex items-center justify-center text-slate-300">
+            <div className="w-8 h-8 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center text-slate-500 dark:text-slate-300">
                <UserCircle size={20} />
             </div>
             <div className="overflow-hidden">
-               <p className="text-sm font-medium text-white truncate">Usuário</p>
-               <p className="text-xs text-slate-500 truncate">Advogado</p>
+               <p className="text-sm font-medium text-slate-900 dark:text-white truncate">Usuário</p>
+               <p className="text-xs text-slate-500 dark:text-slate-400 truncate">Advogado</p>
             </div>
           </div>
           
           <button 
             onClick={handleLogout}
-            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 text-sm text-red-400 hover:bg-red-500/10 hover:text-red-300 rounded-lg transition-colors border border-transparent hover:border-red-500/20"
+            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg transition-colors font-medium"
           >
             <LogOut size={18} />
-            <span>Sair do Sistema</span>
+            <span>Sair</span>
           </button>
         </div>
       </aside>
@@ -121,4 +135,4 @@ const Sidebar = () => {
   );
 };
 
-export default Sidebar;
+export default Sidebar; 
