@@ -1,100 +1,71 @@
 import React from 'react';
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
-import { Toaster } from 'react-hot-toast';
-import { AuthProvider } from './context/AuthContext';
-import { ThemeProvider } from './context/ThemeContext'; // <--- OBRIGATÓRIO PARA AS CORES
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { Toaster } from 'react-hot-toast'; // <--- IMPORTANTE
 
-// Components
-import ThemeToggle from './components/ThemeToggle';
-import ProtectedRoute from './components/ProtectedRoute';
-
-// Pages
-import Home from './pages/Home';
+// Importação das Páginas
 import Login from './pages/Login';
 import Register from './pages/Register';
 import Dashboard from './pages/Dashboard';
+import AnalyzeDocument from './pages/AnalyzeDocument';
 import History from './pages/History';
-import Pricing from './pages/Pricing';
 import Jurisprudence from './pages/Jurisprudence';
-import Profile from './pages/Profile';
-import AdminDashboard from './pages/AdminDashboard';
-import ForgotPassword from './pages/ForgotPassword';
-import ResetPassword from './pages/ResetPassword';
-import NotFound from './pages/NotFound';
-import Terms from './pages/Terms';
-import Privacy from './pages/Privacy';
-import Sidebar from './components/Sidebar';
+
+// Componente para rotas protegidas (Só entra se tiver logado)
+const PrivateRoute = ({ children }) => {
+  const token = localStorage.getItem('token');
+  return token ? children : <Navigate to="/login" />;
+};
 
 function App() {
   return (
-    <BrowserRouter>
-      {/* 1. Provedor de Autenticação (Login) */}
-      <AuthProvider>
+    <Router>
+      {/* Configuração Global das Notificações 
+         Isso faz o toast.success funcionar em qualquer página
+      */}
+      <Toaster 
+        position="top-right"
+        toastOptions={{
+          style: {
+            background: '#1e293b', // slate-800
+            color: '#fff',
+            border: '1px solid #334155',
+          },
+        }}
+      />
+      
+      <Routes>
+        <Route path="/login" element={<Login />} />
+        <Route path="/register" element={<Register />} />
         
-        {/* 2. Provedor de Tema (Cores Claro/Escuro) */}
-        <ThemeProvider>
-          
-          {/* Notificações Toast */}
-          <Toaster position="top-right" toastOptions={{ duration: 4000 }} />
+        {/* Rotas Protegidas */}
+        <Route path="/dashboard" element={
+          <PrivateRoute>
+            <Dashboard />
+          </PrivateRoute>
+        } />
+        
+        <Route path="/analyze" element={
+          <PrivateRoute>
+            <AnalyzeDocument />
+          </PrivateRoute>
+        } />
+        
+        <Route path="/history" element={
+          <PrivateRoute>
+            <History />
+          </PrivateRoute>
+        } />
 
-          {/* Botão Flutuante de Tema (Aparece em TODAS as telas) */}
-          <ThemeToggle floating={true} />
+        <Route path="/jurisprudence" element={
+          <PrivateRoute>
+            <Jurisprudence />
+          </PrivateRoute>
+        } />
 
-          <Routes>
-            {/* --- ROTAS PÚBLICAS --- */}
-            <Route path="/" element={<Home />} />
-            <Route path="/login" element={<Login />} />
-            <Route path="/register" element={<Register />} />
-            <Route path="/forgot-password" element={<ForgotPassword />} />
-            <Route path="/reset-password/:token" element={<ResetPassword />} />
-            <Route path="/terms" element={<Terms />} />
-            <Route path="/privacy" element={<Privacy />} />
-
-            {/* --- ROTAS PROTEGIDAS (Requer Login) --- */}
-            <Route path="/dashboard" element={
-              <ProtectedRoute>
-                <Dashboard />
-              </ProtectedRoute>
-            } />
-            
-            <Route path="/history" element={
-              <ProtectedRoute>
-                <History />
-              </ProtectedRoute>
-            } />
-            
-            <Route path="/jurisprudence" element={
-              <ProtectedRoute>
-                <Jurisprudence />
-              </ProtectedRoute>
-            } />
-            
-            <Route path="/profile" element={
-              <ProtectedRoute>
-                <Profile />
-              </ProtectedRoute>
-            } />
-            
-            <Route path="/pricing" element={
-              <ProtectedRoute>
-                <Pricing />
-              </ProtectedRoute>
-            } />
-            
-            {/* --- ROTA ADMIN (Requer Login + Permissão Admin) --- */}
-            <Route path="/admin" element={
-              <ProtectedRoute adminOnly={true}>
-                <AdminDashboard />
-              </ProtectedRoute>
-            } />
-
-            {/* --- ROTA 404 (Qualquer outra URL) --- */}
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-          
-        </ThemeProvider>
-      </AuthProvider>
-    </BrowserRouter>
+        {/* Rota padrão redireciona para Login */}
+        <Route path="*" element={<Navigate to="/login" />} />
+      </Routes>
+    </Router>
   );
 }
 

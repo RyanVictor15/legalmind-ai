@@ -1,94 +1,119 @@
 import React, { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext';
 import { 
   LayoutDashboard, 
+  FileText, 
   History, 
   Scale, 
-  User, 
   LogOut, 
   Menu, 
-  X 
+  X, 
+  UserCircle 
 } from 'lucide-react';
 
 const Sidebar = () => {
-  const { signOut } = useAuth();
   const location = useLocation();
   const [isOpen, setIsOpen] = useState(false);
 
-  // AQUI ESTAVA O PROBLEMA: Removi as barras '//' para ativar os itens
+  // Fecha o menu quando clica em um link (para mobile)
+  const closeMenu = () => setIsOpen(false);
+
+  // Links do sistema
   const menuItems = [
-    { path: '/dashboard', icon: <LayoutDashboard size={20} />, label: 'Dashboard' },
-    { path: '/history', icon: <History size={20} />, label: 'Meus Casos' },
-    { path: '/jurisprudence', icon: <Scale size={20} />, label: 'Jurisprudência' },
-    { path: '/profile', icon: <User size={20} />, label: 'Meu Perfil' },
+    { path: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
+    { path: '/analyze', icon: FileText, label: 'Nova Análise' },
+    { path: '/history', icon: History, label: 'Histórico' },
+    { path: '/jurisprudence', icon: Scale, label: 'Jurisprudência' },
   ];
 
   const isActive = (path) => location.pathname === path;
 
+  const handleLogout = () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    window.location.href = '/login';
+  };
+
   return (
     <>
-      {/* Botão Mobile */}
-      <button 
-        onClick={() => setIsOpen(true)}
-        className="md:hidden fixed top-4 left-4 z-50 p-2 bg-slate-800 text-white rounded-lg shadow-lg border border-slate-700 hover:bg-slate-700 transition-colors"
-      >
-        <Menu size={24} />
-      </button>
+      {/* --- 1. HEADER MOBILE (Só aparece em telas pequenas) --- */}
+      <div className="md:hidden fixed top-0 left-0 right-0 h-16 bg-slate-950 border-b border-slate-800 flex items-center justify-between px-4 z-50 shadow-md">
+        <div className="flex items-center gap-2 font-bold text-white text-lg">
+          <Scale className="text-blue-500" size={24} />
+          <span>LegalMind</span>
+        </div>
+        <button 
+          onClick={() => setIsOpen(!isOpen)}
+          className="p-2 text-slate-300 hover:text-white hover:bg-slate-800 rounded-lg transition-colors active:scale-95"
+          aria-label="Menu"
+        >
+          {isOpen ? <X size={24} /> : <Menu size={24} />}
+        </button>
+      </div>
 
-      {/* Fundo Escuro (Mobile) */}
+      {/* --- 2. OVERLAY ESCURO (Fundo preto ao abrir menu no mobile) --- */}
       {isOpen && (
         <div 
-          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 md:hidden"
-          onClick={() => setIsOpen(false)}
+          className="fixed inset-0 bg-black/60 z-40 md:hidden backdrop-blur-sm transition-opacity"
+          onClick={closeMenu}
         />
       )}
 
-      {/* Barra Lateral */}
+      {/* --- 3. SIDEBAR (Navegação Principal) --- */}
       <aside className={`
         fixed md:static inset-y-0 left-0 z-50
-        w-64 bg-slate-900 border-r border-slate-800
-        transform transition-transform duration-300 ease-in-out
+        w-64 bg-slate-900 border-r border-slate-800 flex flex-col
+        transform transition-transform duration-300 ease-in-out shadow-2xl md:shadow-none
         ${isOpen ? 'translate-x-0' : '-translate-x-full'} 
         md:translate-x-0 
-        flex flex-col h-screen
+        pt-16 md:pt-0 /* Espaço para o header mobile */
       `}>
         
-        <div className="p-6 border-b border-slate-800 flex justify-between items-center">
-          <div>
-            <h1 className="text-xl font-bold text-white">LegalMind AI</h1>
-            <p className="text-xs text-slate-500">Inteligência Jurídica</p>
-          </div>
-          <button onClick={() => setIsOpen(false)} className="md:hidden text-slate-400">
-            <X size={24} />
-          </button>
+        {/* Logo Desktop */}
+        <div className="h-20 flex items-center px-8 border-b border-slate-800 hidden md:flex">
+          <Scale className="text-blue-500 mr-3" size={28} />
+          <span className="text-xl font-bold text-white tracking-tight">LegalMind</span>
         </div>
 
-        <nav className="flex-1 p-4 space-y-2">
+        {/* Lista de Links */}
+        <nav className="flex-1 px-4 py-6 space-y-2 overflow-y-auto">
           {menuItems.map((item) => (
             <Link
               key={item.path}
               to={item.path}
-              onClick={() => setIsOpen(false)}
-              className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${
-                isActive(item.path)
-                  ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/20'
-                  : 'text-slate-400 hover:bg-slate-800 hover:text-white'
-              }`}
+              onClick={closeMenu}
+              className={`
+                flex items-center gap-3 px-4 py-3.5 rounded-xl transition-all duration-200 font-medium
+                ${isActive(item.path) 
+                  ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/20' 
+                  : 'text-slate-400 hover:bg-slate-800 hover:text-white hover:translate-x-1'
+                }
+              `}
             >
-              {item.icon}
-              <span className="font-medium">{item.label}</span>
+              <item.icon size={20} className={isActive(item.path) ? 'animate-pulse' : ''} />
+              <span>{item.label}</span>
             </Link>
           ))}
         </nav>
 
-        <div className="p-4 border-t border-slate-800">
-          <button
-            onClick={signOut}
-            className="flex items-center gap-3 px-4 py-3 w-full text-slate-400 hover:text-red-400 hover:bg-red-400/10 rounded-xl transition-all"
+        {/* Rodapé da Sidebar */}
+        <div className="p-4 border-t border-slate-800 bg-slate-900/50">
+          <div className="flex items-center gap-3 px-4 py-3 mb-2">
+            <div className="w-8 h-8 rounded-full bg-slate-700 flex items-center justify-center text-slate-300">
+               <UserCircle size={20} />
+            </div>
+            <div className="overflow-hidden">
+               <p className="text-sm font-medium text-white truncate">Usuário</p>
+               <p className="text-xs text-slate-500 truncate">Advogado</p>
+            </div>
+          </div>
+          
+          <button 
+            onClick={handleLogout}
+            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 text-sm text-red-400 hover:bg-red-500/10 hover:text-red-300 rounded-lg transition-colors border border-transparent hover:border-red-500/20"
           >
-            <LogOut size={20} />
-            <span className="font-medium">Sair</span>
+            <LogOut size={18} />
+            <span>Sair do Sistema</span>
           </button>
         </div>
       </aside>
