@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
-// REMOVIDO: import Sidebar ... (O Layout cuida disso agora)
-import Layout from '../components/Layout'; // <--- ADICIONADO
+import Layout from '../components/Layout';
 import FileUpload from '../components/FileUpload';
 import { useAuth } from '../context/AuthContext';
-import { analyzeDocument } from '../api'; // Ajuste o import se necessário, seu arquivo original usava '../services/api' ou '../api'
+// CORREÇÃO AQUI: Mudamos de '../api' para '../services/api'
+import { analyzeDocument } from '../services/api'; 
 import { Loader2, History } from 'lucide-react';
 
 const Dashboard = () => {
@@ -18,7 +18,7 @@ const Dashboard = () => {
       const formData = new FormData();
       formData.append('file', file);
 
-      // Assumindo que analyzeDocument está importado corretamente
+      // Envia para a API
       const response = await analyzeDocument(formData);
       setAnalysis(response.data || response);
     } catch (error) {
@@ -30,10 +30,9 @@ const Dashboard = () => {
   };
 
   return (
-    // ENVOLVENDO TUDO NO LAYOUT (Responsividade Automática)
     <Layout>
       
-      {/* Cabeçalho de Boas Vindas */}
+      {/* Cabeçalho */}
       <div className="mb-8 flex flex-col md:flex-row justify-between items-end gap-4">
         <div>
           <h1 className="text-2xl md:text-3xl font-bold text-slate-900 dark:text-white">
@@ -51,12 +50,12 @@ const Dashboard = () => {
         {/* Coluna Esquerda (2/3): Upload e Resultado */}
         <div className="lg:col-span-2 space-y-8">
           
-          {/* Componente de Upload (Mantido Original) */}
+          {/* Componente de Upload */}
           <div className="bg-white dark:bg-slate-900 rounded-2xl p-6 shadow-sm border border-slate-200 dark:border-slate-800">
              <FileUpload onFileUpload={handleAnalyze} isLoading={loading} />
           </div>
 
-          {/* Resultado da Análise (Mantido Lógica Original) */}
+          {/* Loading State */}
           {loading && (
             <div className="text-center py-12 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800">
                <Loader2 className="animate-spin mx-auto text-blue-600 mb-4" size={48} />
@@ -64,21 +63,21 @@ const Dashboard = () => {
             </div>
           )}
 
+          {/* Resultado da Análise */}
           {analysis && (
              <div className="bg-white dark:bg-slate-900 rounded-2xl p-8 shadow-lg border border-green-500/30 animate-fade-in-up">
                 <h2 className="text-xl font-bold text-green-600 mb-4">Análise Concluída</h2>
-                <div className="prose dark:prose-invert max-w-none">
-                  {/* Exibindo resumo ou dados brutos conforme sua API retorna */}
+                <div className="prose dark:prose-invert max-w-none text-slate-700 dark:text-slate-300">
                   <p>{analysis.summary || JSON.stringify(analysis)}</p>
                 </div>
              </div>
           )}
         </div>
 
-        {/* Coluna Direita (1/3): Sidebar de Ações Rápidas / Histórico */}
+        {/* Coluna Direita (1/3): Ações Rápidas */}
         <div className="space-y-6">
           
-          {/* Card de Histórico Rápido */}
+          {/* Card Histórico */}
           <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-xl p-6 text-white shadow-xl">
             <div className="flex items-center gap-4 mb-4">
               <div className="p-3 bg-white/10 rounded-lg backdrop-blur-sm">
@@ -94,7 +93,7 @@ const Dashboard = () => {
             </button>
           </div>
 
-          {/* Área de Input Texto Rápido (Mantida do seu original) */}
+          {/* Análise de Texto Rápida */}
           <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
              <div className="p-4 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50">
                <h3 className="font-bold text-slate-700 dark:text-slate-200">Análise Rápida (Texto)</h3>
