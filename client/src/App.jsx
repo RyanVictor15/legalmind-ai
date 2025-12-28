@@ -2,7 +2,7 @@ import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 
-// 1. IMPORTAÇÃO DOS CONTEXTOS (Obrigatório importar os dois)
+// IMPORTAÇÃO DOS CONTEXTOS
 import { AuthProvider } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext'; 
 
@@ -13,16 +13,18 @@ import Dashboard from './pages/Dashboard';
 import History from './pages/History';
 import Jurisprudence from './pages/Jurisprudence';
 
-// Rota Protegida
+// --- CORREÇÃO DO LOGIN LOOP ---
 const PrivateRoute = ({ children }) => {
-  const token = localStorage.getItem('token');
-  // Se não tiver token, joga para o Login
-  return token ? children : <Navigate to="/login" replace />;
+  // O seu AuthContext salva como 'userInfo', não como 'token'
+  const userStored = localStorage.getItem('userInfo');
+  
+  // Se tiver userInfo, permite entrar. Se não, manda pro Login.
+  return userStored ? children : <Navigate to="/login" replace />;
 };
 
 function App() {
   return (
-    // 2. A ORDEM IMPORTA: ThemeProvider > AuthProvider > Router
+    // ThemeProvider PRECISA estar por fora para o Sol/Lua funcionar
     <ThemeProvider>
       <AuthProvider>
         <Router>
@@ -36,11 +38,8 @@ function App() {
             }}
           />
           
-          {/* 3. CORREÇÃO DE CORES:
-             - bg-slate-50 (Fundo claro padrão)
-             - dark:bg-slate-950 (Fundo escuro no modo Dark)
-             - text-slate-900 (Texto escuro no modo Claro)
-             - dark:text-slate-100 (Texto claro no modo Dark)
+          {/* REMOVIDAS as classes fixas de cor (bg-slate-950).
+             Usamos as classes do Tailwind configuradas no seu index.css e ThemeContext 
           */}
           <div className="min-h-screen font-inter antialiased transition-colors duration-300 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100">
             <Routes>
@@ -53,7 +52,6 @@ function App() {
                 </PrivateRoute>
               } />
               
-              {/* Rota Analyze redireciona para Dashboard (para manter o menu funcionando) */}
               <Route path="/analyze" element={
                 <PrivateRoute>
                   <Dashboard />
@@ -72,7 +70,6 @@ function App() {
                 </PrivateRoute>
               } />
 
-              {/* Rota 404 redireciona para Login */}
               <Route path="*" element={<Navigate to="/login" replace />} />
             </Routes>
           </div>
