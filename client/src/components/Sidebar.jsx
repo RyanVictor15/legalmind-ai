@@ -10,13 +10,13 @@ import {
   X, 
   UserCircle 
 } from 'lucide-react';
-
-// Seu componente original de tema
+import { useAuth } from '../context/AuthContext'; // Importar useAuth para logout correto
 import ThemeToggle from './ThemeToggle'; 
 
 const Sidebar = () => {
   const location = useLocation();
   const [isOpen, setIsOpen] = useState(false);
+  const { logout } = useAuth(); // Usar a função logout do contexto
 
   const closeMenu = () => setIsOpen(false);
 
@@ -30,9 +30,14 @@ const Sidebar = () => {
   const isActive = (path) => location.pathname === path;
 
   const handleLogout = () => {
-    // CORREÇÃO: Limpa a chave correta do seu sistema
-    localStorage.removeItem('userInfo');
-    window.location.href = '/login';
+    // Usa o logout oficial do sistema para garantir limpeza total
+    if (logout) {
+        logout();
+    } else {
+        // Fallback caso o hook falhe (segurança)
+        localStorage.removeItem('userInfo');
+        window.location.href = '/login';
+    }
   };
 
   return (
@@ -45,7 +50,6 @@ const Sidebar = () => {
         </div>
         
         <div className="flex items-center gap-3">
-           {/* Seu botão de tema */}
            <div className="scale-90">
              <ThemeToggle />
            </div>
@@ -59,7 +63,7 @@ const Sidebar = () => {
         </div>
       </div>
 
-      {/* Fundo escuro Mobile */}
+      {/* Overlay Mobile */}
       {isOpen && (
         <div 
           className="fixed inset-0 bg-black/50 z-40 md:hidden backdrop-blur-sm"
@@ -88,7 +92,7 @@ const Sidebar = () => {
           </div>
         </div>
 
-        {/* Links */}
+        {/* Menu Links */}
         <nav className="flex-1 px-4 py-6 space-y-2 overflow-y-auto">
           {menuItems.map((item) => (
             <Link
@@ -109,7 +113,7 @@ const Sidebar = () => {
           ))}
         </nav>
 
-        {/* User Info */}
+        {/* User Info & Logout */}
         <div className="p-4 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50">
           <div className="flex items-center gap-3 px-4 py-3 mb-2">
             <div className="w-8 h-8 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center text-slate-500 dark:text-slate-300">
