@@ -1,137 +1,69 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { 
-  LayoutDashboard, 
-  FileText, 
-  History, 
-  Scale, 
-  LogOut, 
-  Menu, 
-  X, 
-  UserCircle 
-} from 'lucide-react';
-import { useAuth } from '../context/AuthContext'; // Importar useAuth para logout correto
-import ThemeToggle from './ThemeToggle'; 
 
-const Sidebar = () => {
+// Inline Icons for stability
+const CloseIcon = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+);
+
+const Sidebar = ({ isOpen, setIsSidebarOpen }) => {
   const location = useLocation();
-  const [isOpen, setIsOpen] = useState(false);
-  const { logout } = useAuth(); // Usar a função logout do contexto
-
-  const closeMenu = () => setIsOpen(false);
 
   const menuItems = [
-    { path: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-    { path: '/analyze', icon: FileText, label: 'Nova Análise' },
-    { path: '/history', icon: History, label: 'Histórico' },
-    { path: '/jurisprudence', icon: Scale, label: 'Jurisprudência' },
+    { name: 'Dashboard', path: '/dashboard', icon: '📊' },
+    { name: 'Nova Análise', path: '/upload', icon: '📁' },
+    { name: 'Histórico', path: '/history', icon: 'clock' },
+    { name: 'Perfil', path: '/profile', icon: 'user' },
+    { name: 'Preços', path: '/pricing', icon: 'credit-card' },
   ];
 
   const isActive = (path) => location.pathname === path;
 
-  const handleLogout = () => {
-    // Usa o logout oficial do sistema para garantir limpeza total
-    if (logout) {
-        logout();
-    } else {
-        // Fallback caso o hook falhe (segurança)
-        localStorage.removeItem('userInfo');
-        window.location.href = '/login';
-    }
-  };
-
   return (
     <>
-      {/* Header Mobile */}
-      <div className="md:hidden fixed top-0 left-0 right-0 h-16 bg-white dark:bg-slate-950 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between px-4 z-50 transition-colors duration-300">
-        <div className="flex items-center gap-2 font-bold text-lg text-slate-900 dark:text-white">
-          <Scale className="text-blue-600 dark:text-blue-500" size={24} />
-          <span>LegalMind</span>
-        </div>
-        
-        <div className="flex items-center gap-3">
-           <div className="scale-90">
-             <ThemeToggle />
-           </div>
-           
-           <button 
-            onClick={() => setIsOpen(!isOpen)}
-            className="p-2 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
-           >
-             {isOpen ? <X size={24} /> : <Menu size={24} />}
-           </button>
-        </div>
-      </div>
-
-      {/* Overlay Mobile */}
-      {isOpen && (
-        <div 
-          className="fixed inset-0 bg-black/50 z-40 md:hidden backdrop-blur-sm"
-          onClick={closeMenu}
-        />
-      )}
-
-      {/* Sidebar */}
-      <aside className={`
-        fixed md:static inset-y-0 left-0 z-50
-        w-64 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 flex flex-col
-        transform transition-transform duration-300 ease-in-out shadow-2xl md:shadow-none
-        ${isOpen ? 'translate-x-0' : '-translate-x-full'} 
-        md:translate-x-0 
-        pt-16 md:pt-0
-      `}>
-        
-        {/* Logo Desktop */}
-        <div className="h-20 flex items-center justify-between px-6 border-b border-slate-200 dark:border-slate-800 hidden md:flex">
-          <div className="flex items-center gap-2 font-bold text-lg text-slate-900 dark:text-white">
-             <Scale className="text-blue-600 dark:text-blue-500" size={24} />
-             <span>LegalMind</span>
-          </div>
-          <div className="scale-90">
-             <ThemeToggle />
-          </div>
+      <aside
+        className={`
+          fixed inset-y-0 left-0 z-30 w-64 bg-white shadow-xl transform transition-transform duration-300 ease-in-out
+          lg:translate-x-0 lg:static lg:inset-0
+          ${isOpen ? 'translate-x-0' : '-translate-x-full'}
+        `}
+      >
+        {/* Sidebar Header */}
+        <div className="flex items-center justify-between h-16 px-6 bg-indigo-600 text-white safe-top">
+          <span className="text-2xl font-bold tracking-wider">JusAnalytica</span>
+          <button 
+            onClick={() => setIsSidebarOpen(false)} 
+            className="lg:hidden p-1 rounded hover:bg-indigo-500 focus:outline-none"
+          >
+            <CloseIcon />
+          </button>
         </div>
 
-        {/* Menu Links */}
-        <nav className="flex-1 px-4 py-6 space-y-2 overflow-y-auto">
+        {/* Navigation */}
+        <nav className="mt-6 px-4 space-y-2">
           {menuItems.map((item) => (
             <Link
               key={item.path}
               to={item.path}
-              onClick={closeMenu}
+              onClick={() => setIsSidebarOpen(false)} // Close on click (mobile UX)
               className={`
-                flex items-center gap-3 px-4 py-3.5 rounded-xl transition-all duration-200 font-medium
+                flex items-center px-4 py-3 text-sm font-medium rounded-lg transition-colors duration-200
                 ${isActive(item.path) 
-                  ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/30' 
-                  : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white'
-                }
+                  ? 'bg-indigo-50 text-indigo-700 border-l-4 border-indigo-700' 
+                  : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'}
               `}
             >
-              <item.icon size={20} />
-              <span>{item.label}</span>
+              <span className="mr-3 text-lg">{item.icon}</span>
+              {item.name}
             </Link>
           ))}
         </nav>
 
-        {/* User Info & Logout */}
-        <div className="p-4 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50">
-          <div className="flex items-center gap-3 px-4 py-3 mb-2">
-            <div className="w-8 h-8 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center text-slate-500 dark:text-slate-300">
-               <UserCircle size={20} />
-            </div>
-            <div className="overflow-hidden">
-               <p className="text-sm font-medium text-slate-900 dark:text-white truncate">Usuário</p>
-               <p className="text-xs text-slate-500 dark:text-slate-400 truncate">Advogado</p>
-            </div>
-          </div>
-          
-          <button 
-            onClick={handleLogout}
-            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg transition-colors font-medium"
-          >
-            <LogOut size={18} />
-            <span>Sair</span>
-          </button>
+        {/* Sidebar Footer (Optional) */}
+        <div className="absolute bottom-0 w-full p-4 border-t border-gray-100 bg-gray-50 safe-bottom">
+           <Link to="/login" className="flex items-center text-gray-500 hover:text-red-600 transition-colors text-sm font-medium">
+             <span className="mr-2">🚪</span> Sair
+           </Link>
         </div>
       </aside>
     </>
