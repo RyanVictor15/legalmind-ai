@@ -1,8 +1,10 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
+
+// 1. IMPORTAÇÃO DOS CONTEXTOS (Obrigatório importar os dois)
 import { AuthProvider } from './context/AuthContext';
-import { ThemeProvider } from './context/ThemeContext'; // <--- OBRIGATÓRIO PARA O TEMA
+import { ThemeProvider } from './context/ThemeContext'; 
 
 // Importação das Páginas
 import Login from './pages/Login';
@@ -11,15 +13,16 @@ import Dashboard from './pages/Dashboard';
 import History from './pages/History';
 import Jurisprudence from './pages/Jurisprudence';
 
-// Componente para proteger rotas
+// Rota Protegida
 const PrivateRoute = ({ children }) => {
   const token = localStorage.getItem('token');
-  return token ? children : <Navigate to="/login" />;
+  // Se não tiver token, joga para o Login
+  return token ? children : <Navigate to="/login" replace />;
 };
 
 function App() {
   return (
-    // 1. ThemeProvider envolve tudo para o Sol/Lua funcionar no app inteiro
+    // 2. A ORDEM IMPORTA: ThemeProvider > AuthProvider > Router
     <ThemeProvider>
       <AuthProvider>
         <Router>
@@ -27,16 +30,19 @@ function App() {
             position="top-right"
             toastOptions={{
               style: {
-                background: '#1e293b', 
+                background: '#334155', 
                 color: '#fff',
-                border: '1px solid #334155',
               },
             }}
           />
           
-          {/* REMOVI qualquer cor de fundo fixa. 
-              Quem decide a cor agora são as páginas e o ThemeProvider. */}
-          <div className="font-inter antialiased text-slate-900 dark:text-slate-100 min-h-screen bg-slate-50 dark:bg-slate-950 transition-colors duration-300">
+          {/* 3. CORREÇÃO DE CORES:
+             - bg-slate-50 (Fundo claro padrão)
+             - dark:bg-slate-950 (Fundo escuro no modo Dark)
+             - text-slate-900 (Texto escuro no modo Claro)
+             - dark:text-slate-100 (Texto claro no modo Dark)
+          */}
+          <div className="min-h-screen font-inter antialiased transition-colors duration-300 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100">
             <Routes>
               <Route path="/login" element={<Login />} />
               <Route path="/register" element={<Register />} />
@@ -47,7 +53,7 @@ function App() {
                 </PrivateRoute>
               } />
               
-              {/* Redireciona /analyze para Dashboard para não quebrar o menu */}
+              {/* Rota Analyze redireciona para Dashboard (para manter o menu funcionando) */}
               <Route path="/analyze" element={
                 <PrivateRoute>
                   <Dashboard />
@@ -66,7 +72,8 @@ function App() {
                 </PrivateRoute>
               } />
 
-              <Route path="*" element={<Navigate to="/login" />} />
+              {/* Rota 404 redireciona para Login */}
+              <Route path="*" element={<Navigate to="/login" replace />} />
             </Routes>
           </div>
         </Router>
