@@ -1,44 +1,47 @@
 import React, { useState } from 'react';
 import Sidebar from './Sidebar';
-import { Menu, X } from 'lucide-react'; // Fallback to SVG if lucide not installed, but standard here.
-
-// Simple SVG Icons inside the file to guarantee 0 dependencies issues
-const MenuIcon = () => (
-  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="4" x2="20" y1="12" y2="12"/><line x1="4" x2="20" y1="6" y2="6"/><line x1="4" x2="20" y1="18" y2="18"/></svg>
-);
+import { Menu } from 'lucide-react';
 
 const Layout = ({ children }) => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   return (
-    <div className="flex h-screen bg-gray-50 overflow-hidden">
-      {/* Mobile Sidebar Overlay */}
+    <div className="flex h-screen bg-slate-50 dark:bg-slate-900 overflow-hidden transition-colors duration-300">
+      
+      {/* 1. MÁSCARA ESCURA (Mobile Overlay) - Só aparece quando menu abre no celular */}
       {isSidebarOpen && (
         <div 
-          className="fixed inset-0 z-20 bg-black bg-opacity-50 lg:hidden transition-opacity"
+          className="fixed inset-0 z-20 bg-black/50 lg:hidden backdrop-blur-sm"
           onClick={() => setIsSidebarOpen(false)}
         />
       )}
 
-      {/* Sidebar Component */}
-      <Sidebar isOpen={isSidebarOpen} setIsSidebarOpen={setIsSidebarOpen} />
+      {/* 2. SIDEBAR WRAPPER - Controla o deslize */}
+      <div className={`
+        fixed inset-y-0 left-0 z-30 w-64 transform transition-transform duration-300 ease-in-out
+        lg:relative lg:translate-x-0 
+        ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}
+      `}>
+        {/* Passamos a função para fechar o menu quando clicar num link */}
+        <Sidebar onMobileClick={() => setIsSidebarOpen(false)} />
+      </div>
 
-      {/* Main Content Area */}
-      <div className="flex-1 flex flex-col w-full">
-        {/* Mobile Header (Hamburger) */}
-        <header className="lg:hidden bg-white shadow-sm p-4 flex items-center justify-between z-10 sticky top-0 safe-top">
-          <span className="font-bold text-lg text-indigo-600">JusAnalytica</span>
+      {/* 3. CONTEÚDO PRINCIPAL */}
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+        
+        {/* HEADER MOBILE (Só aparece em telas pequenas) */}
+        <header className="lg:hidden bg-white dark:bg-slate-950 border-b border-slate-200 dark:border-slate-800 p-4 flex items-center gap-4 z-10">
           <button 
             onClick={() => setIsSidebarOpen(true)}
-            className="p-2 rounded-md hover:bg-gray-100 focus:outline-none"
-            aria-label="Open Menu"
+            className="p-2 -ml-2 rounded-lg text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
           >
-            <MenuIcon />
+            <Menu size={24} />
           </button>
+          <span className="font-bold text-slate-900 dark:text-white">LegalMind AI</span>
         </header>
 
-        {/* Page Content */}
-        <main className="flex-1 overflow-x-hidden overflow-y-auto bg-gray-50 p-4 safe-bottom">
+        {/* Onde o Dashboard, History, etc. serão renderizados */}
+        <main className="flex-1 overflow-y-auto overflow-x-hidden relative scroll-smooth p-4 md:p-8">
           {children}
         </main>
       </div>

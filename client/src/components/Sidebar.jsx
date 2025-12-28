@@ -1,69 +1,93 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
+import { 
+  LayoutDashboard, 
+  FileText, 
+  History, 
+  Scale, 
+  UserCircle 
+} from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
+import ThemeToggle from './ThemeToggle'; 
 
-// Inline Icons
-const CloseIcon = () => (
-  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
-);
-
-const Sidebar = ({ isOpen, setIsSidebarOpen }) => {
+// Adicionamos a prop 'onMobileClick' recebida do Layout
+const Sidebar = ({ onMobileClick }) => {
   const location = useLocation();
+  const { logout } = useAuth(); 
 
   const menuItems = [
-    { name: 'Dashboard', path: '/dashboard', icon: '📊' },
-    { name: 'Nova Análise', path: '/upload', icon: '📁' },
-    { name: 'Histórico', path: '/history', icon: 'clock' },
-    { name: 'Perfil', path: '/profile', icon: 'user' },
-    { name: 'Preços', path: '/pricing', icon: 'credit-card' },
+    { path: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
+    { path: '/analyze', icon: FileText, label: 'Nova Análise' },
+    { path: '/history', icon: History, label: 'Histórico' },
+    { path: '/jurisprudence', icon: Scale, label: 'Jurisprudência' },
   ];
 
   const isActive = (path) => location.pathname === path;
 
+  const handleLogout = () => {
+    if (logout) {
+        logout();
+    } else {
+        localStorage.removeItem('userInfo');
+        window.location.href = '/login';
+    }
+  };
+
   return (
-    <>
-      <aside
-        className={`
-          fixed inset-y-0 left-0 z-30 w-64 bg-white shadow-xl transform transition-transform duration-300 ease-in-out
-          lg:translate-x-0 lg:static lg:inset-0
-          ${isOpen ? 'translate-x-0' : '-translate-x-full'}
-        `}
-      >
-        <div className="flex items-center justify-between h-16 px-6 bg-indigo-600 text-white safe-top">
-          <span className="text-2xl font-bold tracking-wider">JusAnalytica</span>
-          <button 
-            onClick={() => setIsSidebarOpen(false)} 
-            className="lg:hidden p-1 rounded hover:bg-indigo-500 focus:outline-none"
+    <div className="flex flex-col h-full bg-white dark:bg-slate-950 border-r border-slate-200 dark:border-slate-800 transition-colors duration-300">
+      
+      {/* HEADER DA SIDEBAR */}
+      <div className="p-6 flex items-center justify-between">
+        <div className="flex items-center gap-2 font-bold text-xl text-slate-900 dark:text-white">
+           <Scale className="text-blue-600" />
+           <span>LegalMind</span>
+        </div>
+        {/* Toggle de Tema na Sidebar (Desktop/Mobile) */}
+        <ThemeToggle />
+      </div>
+
+      {/* NAVEGAÇÃO */}
+      <nav className="flex-1 px-4 space-y-2 overflow-y-auto">
+        {menuItems.map((item) => (
+          <Link
+            key={item.path}
+            to={item.path}
+            // AQUI É A MUDANÇA: Fecha o menu ao clicar (importante pro mobile)
+            onClick={onMobileClick}
+            className={`
+              flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 font-medium
+              ${isActive(item.path) 
+                ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/30' 
+                : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white'
+              }
+            `}
           >
-            <CloseIcon />
-          </button>
-        </div>
+            <item.icon size={20} />
+            <span>{item.label}</span>
+          </Link>
+        ))}
+      </nav>
 
-        <nav className="mt-6 px-4 space-y-2">
-          {menuItems.map((item) => (
-            <Link
-              key={item.path}
-              to={item.path}
-              onClick={() => setIsSidebarOpen(false)}
-              className={`
-                flex items-center px-4 py-3 text-sm font-medium rounded-lg transition-colors duration-200
-                ${isActive(item.path) 
-                  ? 'bg-indigo-50 text-indigo-700 border-l-4 border-indigo-700' 
-                  : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'}
-              `}
-            >
-              <span className="mr-3 text-lg">{item.icon}</span>
-              {item.name}
-            </Link>
-          ))}
-        </nav>
-
-        <div className="absolute bottom-0 w-full p-4 border-t border-gray-100 bg-gray-50 safe-bottom">
-           <Link to="/login" className="flex items-center text-gray-500 hover:text-red-600 transition-colors text-sm font-medium">
-             <span className="mr-2">🚪</span> Sair
-           </Link>
+      {/* USER INFO & LOGOUT */}
+      <div className="p-4 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50">
+        <div className="flex items-center gap-3 px-4 py-3 mb-2">
+          <div className="w-8 h-8 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center text-slate-500 dark:text-slate-300">
+             <UserCircle size={20} />
+          </div>
+          <div className="overflow-hidden">
+             <p className="text-sm font-medium text-slate-900 dark:text-white truncate">Usuário</p>
+             <p className="text-xs text-slate-500 dark:text-slate-400 truncate">Advogado</p>
+          </div>
         </div>
-      </aside>
-    </>
+        
+        <button 
+          onClick={handleLogout}
+          className="w-full flex items-center justify-center gap-2 text-sm text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 p-2 rounded-lg transition-colors"
+        >
+          Sair
+        </button>
+      </div>
+    </div>
   );
 };
 
