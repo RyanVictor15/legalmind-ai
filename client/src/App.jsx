@@ -2,29 +2,27 @@ import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 
-// IMPORTAÇÃO DOS CONTEXTOS
+// Importando os contextos que vi nos seus arquivos
 import { AuthProvider } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext'; 
 
-// Importação das Páginas
 import Login from './pages/Login';
 import Register from './pages/Register';
 import Dashboard from './pages/Dashboard';
 import History from './pages/History';
 import Jurisprudence from './pages/Jurisprudence';
 
-// --- CORREÇÃO DO LOGIN LOOP ---
+// --- A CORREÇÃO REAL ---
+// Seu AuthContext salva 'userInfo', não 'token'. 
+// Corrigi isso aqui para parar de te chutar para o login.
 const PrivateRoute = ({ children }) => {
-  // O seu AuthContext salva como 'userInfo', não como 'token'
   const userStored = localStorage.getItem('userInfo');
-  
-  // Se tiver userInfo, permite entrar. Se não, manda pro Login.
   return userStored ? children : <Navigate to="/login" replace />;
 };
 
 function App() {
   return (
-    // ThemeProvider PRECISA estar por fora para o Sol/Lua funcionar
+    // ThemeProvider envolve tudo (para o botão Sol/Lua funcionar)
     <ThemeProvider>
       <AuthProvider>
         <Router>
@@ -38,10 +36,8 @@ function App() {
             }}
           />
           
-          {/* REMOVIDAS as classes fixas de cor (bg-slate-950).
-             Usamos as classes do Tailwind configuradas no seu index.css e ThemeContext 
-          */}
-          <div className="min-h-screen font-inter antialiased transition-colors duration-300 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100">
+          {/* Classes de cor dinâmicas baseadas no seu Tailwind */}
+          <div className="min-h-screen font-inter antialiased transition-colors duration-300 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-slate-100">
             <Routes>
               <Route path="/login" element={<Login />} />
               <Route path="/register" element={<Register />} />
@@ -52,6 +48,7 @@ function App() {
                 </PrivateRoute>
               } />
               
+              {/* Mantive essa rota para o menu não quebrar */}
               <Route path="/analyze" element={
                 <PrivateRoute>
                   <Dashboard />

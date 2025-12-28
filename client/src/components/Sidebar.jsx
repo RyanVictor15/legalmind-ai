@@ -11,7 +11,7 @@ import {
   UserCircle 
 } from 'lucide-react';
 
-// Importa o componente que VOCÊ criou (conforme seu upload)
+// Seu componente original de tema
 import ThemeToggle from './ThemeToggle'; 
 
 const Sidebar = () => {
@@ -20,7 +20,6 @@ const Sidebar = () => {
 
   const closeMenu = () => setIsOpen(false);
 
-  // Seus itens de menu originais
   const menuItems = [
     { path: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
     { path: '/analyze', icon: FileText, label: 'Nova Análise' },
@@ -31,13 +30,14 @@ const Sidebar = () => {
   const isActive = (path) => location.pathname === path;
 
   const handleLogout = () => {
-    localStorage.removeItem('userInfo'); // Limpa a chave correta
+    // CORREÇÃO: Limpa a chave correta do seu sistema
+    localStorage.removeItem('userInfo');
     window.location.href = '/login';
   };
 
   return (
     <>
-      {/* --- MOBILE HEADER (Só aparece < 768px) --- */}
+      {/* Header Mobile */}
       <div className="md:hidden fixed top-0 left-0 right-0 h-16 bg-white dark:bg-slate-950 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between px-4 z-50 transition-colors duration-300">
         <div className="flex items-center gap-2 font-bold text-lg text-slate-900 dark:text-white">
           <Scale className="text-blue-600 dark:text-blue-500" size={24} />
@@ -59,7 +59,7 @@ const Sidebar = () => {
         </div>
       </div>
 
-      {/* --- OVERLAY ESCURO (Mobile) --- */}
+      {/* Fundo escuro Mobile */}
       {isOpen && (
         <div 
           className="fixed inset-0 bg-black/50 z-40 md:hidden backdrop-blur-sm"
@@ -67,7 +67,7 @@ const Sidebar = () => {
         />
       )}
 
-      {/* --- SIDEBAR --- */}
+      {/* Sidebar */}
       <aside className={`
         fixed md:static inset-y-0 left-0 z-50
         w-64 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 flex flex-col
@@ -83,13 +83,12 @@ const Sidebar = () => {
              <Scale className="text-blue-600 dark:text-blue-500" size={24} />
              <span>LegalMind</span>
           </div>
-          {/* Botão de Tema Desktop */}
           <div className="scale-90">
              <ThemeToggle />
           </div>
         </div>
 
-        {/* Navegação */}
+        {/* Links */}
         <nav className="flex-1 px-4 py-6 space-y-2 overflow-y-auto">
           {menuItems.map((item) => (
             <Link
@@ -110,7 +109,7 @@ const Sidebar = () => {
           ))}
         </nav>
 
-        {/* Rodapé Usuário */}
+        {/* User Info */}
         <div className="p-4 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50">
           <div className="flex items-center gap-3 px-4 py-3 mb-2">
             <div className="w-8 h-8 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center text-slate-500 dark:text-slate-300">
