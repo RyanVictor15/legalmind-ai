@@ -2,9 +2,8 @@ import React, { useState } from 'react';
 import Layout from '../components/Layout';
 import FileUpload from '../components/FileUpload';
 import { useAuth } from '../context/AuthContext';
-// CORREÇÃO AQUI: Mudamos de '../api' para '../services/api'
-import { analyzeDocument } from '../services/api'; 
-import { Loader2, History } from 'lucide-react';
+import { analyzeDocument } from '../services/api';
+import { Loader2, FileText, CheckCircle2 } from 'lucide-react';
 
 const Dashboard = () => {
   const { user } = useAuth();
@@ -17,8 +16,6 @@ const Dashboard = () => {
     try {
       const formData = new FormData();
       formData.append('file', file);
-
-      // Envia para a API
       const response = await analyzeDocument(formData);
       setAnalysis(response.data || response);
     } catch (error) {
@@ -31,84 +28,90 @@ const Dashboard = () => {
 
   return (
     <Layout>
-      
-      {/* Cabeçalho */}
-      <div className="mb-8 flex flex-col md:flex-row justify-between items-end gap-4">
-        <div>
-          <h1 className="text-2xl md:text-3xl font-bold text-slate-900 dark:text-white">
-            Olá, {user?.firstName || 'Doutor(a)'}
+      {/* Container Centralizado - Resolve a sensação de "Desorganizado" */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        
+        {/* Cabeçalho Simples */}
+        <div className="mb-8">
+          <h1 className="text-2xl font-bold text-slate-900 dark:text-white">
+            Dashboard
           </h1>
-          <p className="text-slate-500 dark:text-slate-400 mt-1">
-            Selecione um documento para análise jurídica com IA.
+          <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">
+            Olá, {user?.firstName}. Comece uma nova análise abaixo.
           </p>
         </div>
-      </div>
 
-      {/* Grid Principal */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        
-        {/* Coluna Esquerda (2/3): Upload e Resultado */}
-        <div className="lg:col-span-2 space-y-8">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
           
-          {/* Componente de Upload */}
-          <div className="bg-white dark:bg-slate-900 rounded-2xl p-6 shadow-sm border border-slate-200 dark:border-slate-800">
-             <FileUpload onFileUpload={handleAnalyze} isLoading={loading} />
+          {/* ÁREA PRINCIPAL (Upload e Resultado) - Ocupa mais espaço */}
+          <div className="lg:col-span-8 space-y-6">
+            
+            {/* Card de Upload */}
+            <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 p-6">
+               <h2 className="font-semibold text-slate-800 dark:text-white mb-4 flex items-center gap-2">
+                 <FileText size={20} className="text-blue-500" />
+                 Nova Análise de Documento
+               </h2>
+               <FileUpload onFileUpload={handleAnalyze} isLoading={loading} />
+            </div>
+
+            {/* Loading */}
+            {loading && (
+              <div className="bg-white dark:bg-slate-900 rounded-xl p-8 border border-slate-200 dark:border-slate-800 text-center animate-pulse">
+                 <Loader2 className="animate-spin mx-auto text-blue-600 mb-3" size={32} />
+                 <p className="text-slate-600 dark:text-slate-300">A IA está lendo seu documento...</p>
+              </div>
+            )}
+
+            {/* Resultado da Análise */}
+            {analysis && (
+               <div className="bg-white dark:bg-slate-900 rounded-xl p-6 shadow-md border border-green-500/50">
+                  <div className="flex items-center gap-2 mb-4 text-green-600 dark:text-green-400">
+                    <CheckCircle2 size={24} />
+                    <h2 className="text-lg font-bold">Análise Concluída</h2>
+                  </div>
+                  
+                  <div className="prose prose-slate dark:prose-invert max-w-none text-sm bg-slate-50 dark:bg-slate-950/50 p-4 rounded-lg">
+                    {/* Exibe o resumo ou JSON se for objeto */}
+                    <p className="whitespace-pre-line">
+                      {typeof analysis.summary === 'string' ? analysis.summary : JSON.stringify(analysis, null, 2)}
+                    </p>
+                  </div>
+               </div>
+            )}
           </div>
 
-          {/* Loading State */}
-          {loading && (
-            <div className="text-center py-12 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800">
-               <Loader2 className="animate-spin mx-auto text-blue-600 mb-4" size={48} />
-               <p className="text-slate-600 dark:text-slate-300">Processando documento...</p>
-            </div>
-          )}
-
-          {/* Resultado da Análise */}
-          {analysis && (
-             <div className="bg-white dark:bg-slate-900 rounded-2xl p-8 shadow-lg border border-green-500/30 animate-fade-in-up">
-                <h2 className="text-xl font-bold text-green-600 mb-4">Análise Concluída</h2>
-                <div className="prose dark:prose-invert max-w-none text-slate-700 dark:text-slate-300">
-                  <p>{analysis.summary || JSON.stringify(analysis)}</p>
-                </div>
-             </div>
-          )}
-        </div>
-
-        {/* Coluna Direita (1/3): Ações Rápidas */}
-        <div className="space-y-6">
-          
-          {/* Card Histórico */}
-          <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-xl p-6 text-white shadow-xl">
-            <div className="flex items-center gap-4 mb-4">
-              <div className="p-3 bg-white/10 rounded-lg backdrop-blur-sm">
-                <History size={24} />
-              </div>
-              <div>
-                <p className="text-slate-400 text-sm font-medium">Atividade Recente</p>
-                <h3 className="text-lg font-bold">Ver Histórico</h3>
-              </div>
-            </div>
-            <button className="w-full py-2 bg-white/10 hover:bg-white/20 rounded-lg transition text-sm font-semibold">
-              Acessar lista completa
-            </button>
-          </div>
-
-          {/* Análise de Texto Rápida */}
-          <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
-             <div className="p-4 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50">
-               <h3 className="font-bold text-slate-700 dark:text-slate-200">Análise Rápida (Texto)</h3>
-             </div>
-             <div className="p-4">
-                <textarea 
-                  className="w-full h-32 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-lg p-3 text-slate-800 dark:text-slate-300 focus:ring-2 focus:ring-blue-500 outline-none resize-none mb-3 text-sm"
-                  placeholder="Cole um trecho de jurisprudência aqui..."
-                ></textarea>
-                <button className="w-full bg-slate-900 dark:bg-slate-800 hover:bg-slate-800 dark:hover:bg-slate-700 text-white py-2 rounded-lg font-medium text-sm transition-colors">
+          {/* SIDEBAR LATERAL (Widgets Rápidos) - Ocupa menos espaço */}
+          <div className="lg:col-span-4 space-y-6">
+            
+            {/* Widget de Texto Rápido */}
+            <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 p-5">
+               <h3 className="font-semibold text-slate-800 dark:text-white mb-3 text-sm">
+                 Colar Texto Rápido
+               </h3>
+               <textarea 
+                  className="w-full h-32 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-lg p-3 text-slate-800 dark:text-slate-300 text-sm focus:ring-1 focus:ring-blue-500 outline-none resize-none"
+                  placeholder="Cole um parágrafo de jurisprudência..."
+               ></textarea>
+               <button className="mt-3 w-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 py-2 rounded-lg text-xs font-bold uppercase tracking-wide transition-colors">
                   Analisar Texto
-                </button>
-             </div>
-          </div>
+               </button>
+            </div>
 
+            {/* Banner Pro (Opcional - Visual clean) */}
+            {!user?.isPro && (
+              <div className="bg-gradient-to-br from-blue-600 to-indigo-700 rounded-xl p-5 text-white shadow-lg">
+                <h3 className="font-bold mb-1">Seja Premium</h3>
+                <p className="text-xs text-blue-100 mb-3 opacity-90">
+                  Desbloqueie análises ilimitadas e IA mais rápida.
+                </p>
+                <button className="w-full bg-white text-blue-700 py-2 rounded-lg text-xs font-bold hover:bg-blue-50 transition">
+                  Ver Planos
+                </button>
+              </div>
+            )}
+
+          </div>
         </div>
       </div>
     </Layout>
