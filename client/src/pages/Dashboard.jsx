@@ -1,5 +1,5 @@
 import React from 'react';
-import Layout from './components/Layout'; // Certifique-se de importar o Layout novo
+import Layout from '../components/Layout'; // <--- CORREÇÃO AQUI (Path Fix)
 
 const Dashboard = () => {
   const stats = [

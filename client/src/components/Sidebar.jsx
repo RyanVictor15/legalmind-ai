@@ -1,7 +1,7 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
 
-// Inline Icons for stability
+// Inline Icons
 const CloseIcon = () => (
   <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
 );
@@ -28,7 +28,6 @@ const Sidebar = ({ isOpen, setIsSidebarOpen }) => {
           ${isOpen ? 'translate-x-0' : '-translate-x-full'}
         `}
       >
-        {/* Sidebar Header */}
         <div className="flex items-center justify-between h-16 px-6 bg-indigo-600 text-white safe-top">
           <span className="text-2xl font-bold tracking-wider">JusAnalytica</span>
           <button 
@@ -39,13 +38,12 @@ const Sidebar = ({ isOpen, setIsSidebarOpen }) => {
           </button>
         </div>
 
-        {/* Navigation */}
         <nav className="mt-6 px-4 space-y-2">
           {menuItems.map((item) => (
             <Link
               key={item.path}
               to={item.path}
-              onClick={() => setIsSidebarOpen(false)} // Close on click (mobile UX)
+              onClick={() => setIsSidebarOpen(false)}
               className={`
                 flex items-center px-4 py-3 text-sm font-medium rounded-lg transition-colors duration-200
                 ${isActive(item.path) 
@@ -59,7 +57,6 @@ const Sidebar = ({ isOpen, setIsSidebarOpen }) => {
           ))}
         </nav>
 
-        {/* Sidebar Footer (Optional) */}
         <div className="absolute bottom-0 w-full p-4 border-t border-gray-100 bg-gray-50 safe-bottom">
            <Link to="/login" className="flex items-center text-gray-500 hover:text-red-600 transition-colors text-sm font-medium">
              <span className="mr-2">🚪</span> Sair
