@@ -1,40 +1,44 @@
 import axios from 'axios';
 
-// Define a URL base (Local ou Render)
-const API_URL = import.meta.env.VITE_API_URL || 'https://legalmind-api.onrender.com/api';
-
+// Cria a instância do Axios
 const api = axios.create({
-  baseURL: API_URL,
-  timeout: 120000, // 2 minutos para processar arquivos grandes
+  baseURL: 'http://localhost:5000/api', // Em produção, isso mudará
+  timeout: 120000, // FASE 3 (Adiantado): Aumentado para 120s para suportar IA
 });
 
-// INTERCEPTOR (Crítico: Pega o token do jeito que seu AuthContext salva)
-api.interceptors.request.use((config) => {
-  const userInfo = localStorage.getItem('userInfo'); // Seu sistema usa 'userInfo'
-  if (userInfo) {
-    const parsed = JSON.parse(userInfo);
-    if (parsed.token) config.headers.Authorization = `Bearer ${parsed.token}`;
+// INTERCEPTOR DE REQUISIÇÃO (Anexa o token automaticamente)
+api.interceptors.request.use(
+  (config) => {
+    const userInfo = localStorage.getItem('userInfo');
+    if (userInfo) {
+      const { token } = JSON.parse(userInfo);
+      if (token) {
+        config.headers.Authorization = `Bearer ${token}`;
+      }
+    }
+    return config;
+  },
+  (error) => Promise.reject(error)
+);
+
+// INTERCEPTOR DE RESPOSTA (FASE 2: Gerenciamento de Erros 401)
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    // Se o erro for 401 (Não autorizado / Token expirado)
+    if (error.response && error.response.status === 401) {
+      console.warn("Sessão expirada. Redirecionando para login...");
+      
+      // Limpa dados locais
+      localStorage.removeItem('userInfo');
+      
+      // Redireciona para login (força bruta para garantir limpeza de estado)
+      if (window.location.pathname !== '/login') {
+        window.location.href = '/login';
+      }
+    }
+    return Promise.reject(error);
   }
-  return config;
-});
-
-// FUNÇÃO DE ANÁLISE (Exportada para o Dashboard usar)
-export const analyzeDocument = async (formData) => {
-  const { data } = await api.post('/analyze', formData, {
-    headers: { 'Content-Type': 'multipart/form-data' }
-  });
-  return data;
-};
-
-// Funções de Auth (Mantidas para não quebrar login/registro)
-export const loginUser = async (credentials) => {
-  const { data } = await api.post('/users/login', credentials);
-  return data;
-};
-
-export const registerUser = async (userData) => {
-  const { data } = await api.post('/users/register', userData);
-  return data;
-};
+);
 
 export default api;

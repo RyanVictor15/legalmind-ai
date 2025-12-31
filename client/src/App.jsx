@@ -1,94 +1,62 @@
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { Toaster } from 'react-hot-toast';
-
-// Contextos
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
-import { ThemeProvider } from './context/ThemeContext'; 
+import { Toaster } from 'react-hot-toast'; // FASE 2: Feedback Visual Global
 
-// Componentes Globais
-import ThemeToggle from './components/ThemeToggle'; // <--- O RESPONSÁVEL PELO SOL/LUA
-
-// Páginas
-import Home from './pages/Home';
+// Import Pages
 import Login from './pages/Login';
 import Register from './pages/Register';
 import Dashboard from './pages/Dashboard';
-import History from './pages/History';
+import History from './pages/History'; // Novo (Renomeado de Meus Casos)
 import Jurisprudence from './pages/Jurisprudence';
 
-// Rota Protegida (Corrigida para usar a lógica do seu AuthContext)
+// Componente de Rota Protegida
 const PrivateRoute = ({ children }) => {
-  const { user, loading } = useAuth();
+  const { authenticated, loading } = useAuth();
+
+  if (loading) return <div className="flex h-screen items-center justify-center">Carregando...</div>;
   
-  if (loading) return <div className="min-h-screen bg-slate-50 dark:bg-slate-900" />;
-  
-  // Verifica se tem usuário. Se não, manda pro Login.
-  return user ? children : <Navigate to="/login" replace />;
+  return authenticated ? children : <Navigate to="/login" />;
 };
 
 function App() {
   return (
-    <ThemeProvider>
+    <BrowserRouter>
       <AuthProvider>
-        <Router>
-          <Toaster 
-            position="top-right"
-            toastOptions={{
-              style: {
-                background: '#334155', 
-                color: '#fff',
-              },
-            }}
-          />
+        {/* FASE 2: Configuração Global dos Toasts (Notificações) */}
+        <Toaster 
+          position="top-right"
+          toastOptions={{
+            duration: 4000,
+            style: {
+              background: '#333',
+              color: '#fff',
+            },
+            success: {
+              style: { background: '#10B981', color: 'white' }, // Verde
+            },
+            error: {
+              style: { background: '#EF4444', color: 'white' }, // Vermelho
+            },
+          }} 
+        />
+        
+        <Routes>
+          {/* Rotas Públicas */}
+          <Route path="/login" element={<Login />} />
+          <Route path="/register" element={<Register />} />
           
-          {/* AQUI ESTÁ A CORREÇÃO:
-             Colocando o ThemeToggle aqui, ele aparece em TODAS as páginas (Login, Register, Home),
-             sem você precisar editar os arquivos delas.
-          */}
-          <ThemeToggle floating={true} />
-
-          {/* Container Global de Cores */}
-          <div className="min-h-screen font-inter antialiased transition-colors duration-300 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-slate-100">
-            <Routes>
-              {/* Rota da Home (Página Inicial) */}
-              <Route path="/" element={<Home />} />
-
-              <Route path="/login" element={<Login />} />
-              <Route path="/register" element={<Register />} />
-              
-              {/* Rotas do Sistema (Protegidas) */}
-              <Route path="/dashboard" element={
-                <PrivateRoute>
-                  <Dashboard />
-                </PrivateRoute>
-              } />
-              
-              <Route path="/analyze" element={
-                <PrivateRoute>
-                  <Dashboard />
-                </PrivateRoute>
-              } />
-              
-              <Route path="/history" element={
-                <PrivateRoute>
-                  <History />
-                </PrivateRoute>
-              } />
-
-              <Route path="/jurisprudence" element={
-                <PrivateRoute>
-                  <Jurisprudence />
-                </PrivateRoute>
-              } />
-
-              {/* Rota de Erro (404) volta para Home */}
-              <Route path="*" element={<Navigate to="/" replace />} />
-            </Routes>
-          </div>
-        </Router>
+          {/* Rotas Privadas */}
+          <Route path="/dashboard" element={<PrivateRoute><Dashboard /></PrivateRoute>} />
+          <Route path="/history" element={<PrivateRoute><History /></PrivateRoute>} />
+          <Route path="/jurisprudence" element={<PrivateRoute><Jurisprudence /></PrivateRoute>} />
+          
+          {/* Redirecionamento Padrão */}
+          <Route path="/" element={<Navigate to="/dashboard" />} />
+          <Route path="*" element={<Navigate to="/dashboard" />} />
+        </Routes>
       </AuthProvider>
-    </ThemeProvider>
+    </BrowserRouter>
   );
 }
 

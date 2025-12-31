@@ -2,21 +2,13 @@
 @tailwind components;
 @tailwind utilities;
 
-/* --- FASE 1: MOBILE TWEAKS --- */
-
 @layer base {
-  /* Evita que o iOS dê zoom quando você clica num input */
+  /* FASE 1: Correção para iOS - Impede zoom automático em inputs */
   input, textarea, select {
-    font-size: 16px !important; 
+    font-size: 16px !important; /* Tamanho mínimo para o iOS não dar zoom */
   }
 
-  /* Garante área de toque mínima de 44px para botões (Padrão Apple) */
-  button {
-    min-height: 44px;
-    min-width: 44px;
-  }
-  
-  /* Proteção para iPhone X e mais novos (Safe Area) */
+  /* FASE 1: Safe Area - Evita que o conteúdo fique atrás do Notch do iPhone */
   body {
     padding-top: env(safe-area-inset-top);
     padding-bottom: env(safe-area-inset-bottom);
@@ -25,57 +17,16 @@
   }
 }
 
-/* Scrollbar bonita e fina */
-::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
-}
-::-webkit-scrollbar-track {
-  background: #0f172a; 
-}
-::-webkit-scrollbar-thumb {
-  background: #334155; 
-  border-radius: 4px;
-}
-::-webkit-scrollbar-thumb:hover {
-  background: #475569; 
+/* Animações Suaves (Fase 2) */
+.animate-in {
+  animation-duration: 300ms;
+  animation-fill-mode: both;
 }
 
-/* --- MOBILE OPTIMIZATIONS (CODE SNIPER PHASE 1) --- */
-
-/* Safe Area for iOS Notch */
-.safe-top {
-  padding-top: env(safe-area-inset-top);
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
-.safe-bottom {
-  padding-bottom: env(safe-area-inset-bottom);
-}
-
-/* Prevent iOS Zoom on Inputs */
-@media screen and (max-width: 768px) {
-  input, select, textarea {
-    font-size: 16px !important;
-  }
-}
-
-/* Better Scrolling */
-html, body {
-  -webkit-overflow-scrolling: touch;
-  overscroll-behavior-y: none; /* Prevents bounce effect */
-}
-
-/* Custom Scrollbar for Dashboard */
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
-::-webkit-scrollbar-track {
-  background: #f1f1f1; 
-}
-::-webkit-scrollbar-thumb {
-  background: #c7c7c7; 
-  border-radius: 4px;
-}
-::-webkit-scrollbar-thumb:hover {
-  background: #a8a8a8; 
+.animate-fade-in {
+  animation: fadeIn 0.3s ease-out forwards;
 }

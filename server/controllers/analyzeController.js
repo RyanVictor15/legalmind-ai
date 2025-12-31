@@ -1,68 +1,92 @@
-const Analysis = require('../models/Analysis');
-const { generateLegalAnalysis } = require('../services/aiService');
 const fs = require('fs');
 const pdfParse = require('pdf-parse');
+const Document = require('../models/Document');
+const User = require('../models/User'); // Precisamos do Model de Usuário para atualizar créditos
+const { generateLegalAnalysis } = require('../services/aiService');
 
-// @desc    Analisar documento e SALVAR no histórico
+// Configuração do Limite Gratuito
+const FREE_LIMIT = 3;
+
 const analyzeDocument = async (req, res) => {
+  if (!req.file) {
+    return res.status(400).json({ message: 'Nenhum arquivo enviado.' });
+  }
+
+  const filePath = req.file.path;
+
   try {
-    if (!req.file) {
-      return res.status(400).json({ message: 'Nenhum arquivo enviado' });
-    }
-
-    let text = '';
+    // 📍 1. VERIFICAÇÃO DE CRÉDITOS (O PAYWALL)
+    // Buscamos o usuário atualizado no banco
+    const user = await User.findById(req.user._id);
     
-    // 1. Ler o arquivo (PDF ou Texto)
-    if (req.file.mimetype === 'application/pdf') {
-      const dataBuffer = fs.readFileSync(req.file.path);
-      const data = await pdfParse(dataBuffer);
-      text = data.text;
-    } else {
-      text = fs.readFileSync(req.file.path, 'utf8');
+    // Se NÃO for Pro e já estourou o limite...
+    if (!user.isPro && user.usageCount >= FREE_LIMIT) {
+      // Deleta o arquivo imediatamente para não ocupar espaço
+      if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+      
+      return res.status(403).json({ 
+        message: 'Limite gratuito atingido. Faça o upgrade para continuar.',
+        isLimitReached: true // Flag para o frontend abrir o modal de pagamento
+      });
     }
 
-    // 2. Chamar a IA
-    const analysisResult = await generateLegalAnalysis(text, req.file.originalname);
+    console.log(`📄 Processando: ${req.file.originalname} (Uso: ${user.usageCount}/${FREE_LIMIT})`);
 
-    // 3. Salvar no Banco
-    const savedAnalysis = await Analysis.create({
-      user: req.user._id,
-      filename: req.file.originalname,
-      summary: analysisResult.summary,
-      riskScore: analysisResult.riskScore,
-      verdict: analysisResult.verdict,
-      strategicAdvice: analysisResult.strategicAdvice,
-      fullAnalysis: analysisResult
+    // 2. EXTRAÇÃO
+    let textContent = '';
+    if (req.file.mimetype === 'application/pdf') {
+       const dataBuffer = fs.readFileSync(filePath);
+       const pdfData = await pdfParse(dataBuffer);
+       textContent = pdfData.text;
+    } else {
+       textContent = fs.readFileSync(filePath, 'utf-8');
+    }
+    
+    // Limpeza
+    textContent = textContent.replace(/\n\s*\n/g, '\n');
+
+    // 3. IA (Gera Custo)
+    const analysis = await generateLegalAnalysis(textContent, req.file.originalname);
+
+    // 4. PERSISTÊNCIA DO DOCUMENTO
+    const newDoc = await Document.create({
+        user: req.user._id,
+        filename: req.file.originalname,
+        originalContent: textContent.substring(0, 5000),
+        summary: analysis.summary,
+        riskScore: analysis.riskScore,
+        verdict: analysis.verdict,
+        strategicAdvice: analysis.strategicAdvice,
+        keywords: analysis.keywords
     });
 
-    // 4. Limpar arquivo temporário
-    if (fs.existsSync(req.file.path)) {
-      fs.unlinkSync(req.file.path);
+    // 📍 5. COBRANÇA (Incrementa Contador)
+    // Se não for Pro, aumenta o contador de uso
+    if (!user.isPro) {
+      user.usageCount += 1;
+      await user.save();
     }
 
-    // 5. Retornar
-    res.json(savedAnalysis.fullAnalysis);
+    res.status(201).json(newDoc);
 
   } catch (error) {
-    // Limpeza em caso de erro
-    if (req.file && fs.existsSync(req.file.path)) {
-      try { fs.unlinkSync(req.file.path); } catch (e) {}
-    }
-    
-    console.error("Erro no controller:", error);
-    res.status(500).json({ 
-      message: error.message || 'Erro no processamento do arquivo' 
-    });
+    console.error('❌ Erro Analyze:', error);
+    res.status(500).json({ message: error.message || 'Erro interno.' });
+
+  } finally {
+    // 6. LIMPEZA
+    try {
+      if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+    } catch (e) { console.error('Erro cleanup:', e); }
   }
 };
 
-// @desc    Buscar histórico do usuário
 const getHistory = async (req, res) => {
   try {
-    const history = await Analysis.find({ user: req.user._id }).sort({ createdAt: -1 });
-    res.json(history);
+    const docs = await Document.find({ user: req.user._id }).sort({ createdAt: -1 });
+    res.json(docs);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: 'Erro ao buscar histórico.' });
   }
 };
 

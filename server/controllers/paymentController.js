@@ -3,13 +3,13 @@ const User = require('../models/User');
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
-// 1. CRIAR SESSÃO DE CHECKOUT (Front chama isso)
+// 1. CRIAR SESSÃO DE CHECKOUT
 const createCheckoutSession = async (req, res) => {
   try {
     const userId = req.user._id;
     const user = await User.findById(userId);
 
-    // Identificar ou Criar Cliente Stripe
+    // Cria cliente no Stripe se não existir
     let customerId = user.stripeCustomerId;
 
     if (!customerId) {
@@ -23,90 +23,89 @@ const createCheckoutSession = async (req, res) => {
       await user.save();
     }
 
-    // URL do Front-end (Prod ou Local)
     const clientUrl = process.env.CLIENT_URL || 'http://localhost:5173';
 
+    // Cria a sessão de pagamento
     const session = await stripe.checkout.sessions.create({
       customer: customerId,
       line_items: [
         {
-          price: process.env.STRIPE_PRICE_ID, // ID do Preço no Dashboard do Stripe
+          price: process.env.STRIPE_PRICE_ID, // Certifique-se que isso está no .env
           quantity: 1,
         },
       ],
       mode: 'subscription',
       success_url: `${clientUrl}/dashboard?success=true`,
-      cancel_url: `${clientUrl}/pricing?canceled=true`,
-      metadata: { userId: userId.toString() } // Importante para o Webhook saber quem pagou
+      cancel_url: `${clientUrl}/dashboard?canceled=true`,
+      subscription_data: {
+        metadata: { userId: userId.toString() }
+      }
     });
 
     res.json({ url: session.url });
 
   } catch (error) {
     console.error('Stripe Checkout Error:', error);
-    res.status(500).json({ message: 'Erro ao criar pagamento.' });
+    res.status(500).json({ message: 'Erro ao iniciar pagamento.' });
   }
 };
 
-// 2. WEBHOOK (Stripe chama isso nos bastidores)
+// 2. WEBHOOK (Onde a mágica da aprovação acontece)
 const handleWebhook = async (req, res) => {
   const sig = req.headers['stripe-signature'];
+  const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET;
+
   let event;
 
   try {
-    // AQUI ESTÁ A SEGURANÇA: Valida se veio do Stripe mesmo
-    // req.body deve ser RAW (configurado no index.js)
-    event = stripe.webhooks.constructEvent(
-      req.body, 
-      sig, 
-      process.env.STRIPE_WEBHOOK_SECRET
-    );
+    // 📍 SEGURANÇA MÁXIMA: Valida se o evento veio mesmo do Stripe
+    // Nota: req.body aqui precisa ser o buffer raw. Se falhar, verifique o server/index.js
+    event = stripe.webhooks.constructEvent(req.body, sig, endpointSecret);
   } catch (err) {
     console.error(`⚠️ Webhook Signature Error: ${err.message}`);
     return res.status(400).send(`Webhook Error: ${err.message}`);
   }
 
-  // Processar Eventos
+  // Processa o evento validado
   try {
     switch (event.type) {
-      // PAGAMENTO APROVADO
+      
       case 'checkout.session.completed': {
         const session = event.data.object;
-        const userId = session.metadata.userId; // Recupera o ID que mandamos no checkout
-
+        // Recupera userId dos metadados ou do cliente
+        const userId = session.metadata?.userId || session.subscription_data?.metadata?.userId;
+        
         if (userId) {
-          await User.findByIdAndUpdate(userId, {
-            isPro: true,
-            usageCount: 0, // Reseta o limite de uso
-            subscriptionId: session.subscription,
-            subscriptionStatus: 'active'
-          });
-          console.log(`✅ Pagamento confirmado! Usuário ${userId} agora é PRO.`);
+          const user = await User.findById(userId);
+          if (user) {
+            user.isPro = true;
+            user.usageCount = 0; // Reseta o uso ao virar Pro
+            user.subscriptionId = session.subscription;
+            user.subscriptionStatus = 'active';
+            await user.save();
+            console.log(`💰 Usuário ${user.email} virou PRO!`);
+          }
         }
         break;
       }
 
-      // ASSINATURA CANCELADA
       case 'customer.subscription.deleted': {
         const subscription = event.data.object;
-        // Precisamos achar o usuário pela assinatura, pois metadata as vezes não vem na deleção
         const user = await User.findOne({ subscriptionId: subscription.id });
-        
         if (user) {
           user.isPro = false;
           user.subscriptionStatus = 'canceled';
           await user.save();
-          console.log(`❌ Assinatura cancelada para usuário ${user._id}.`);
+          console.log(`❌ Assinatura cancelada: ${user.email}`);
         }
         break;
       }
       
-      // PAGAMENTO FALHOU (Cartão recusado na renovação)
       case 'invoice.payment_failed': {
         const invoice = event.data.object;
         const user = await User.findOne({ stripeCustomerId: invoice.customer });
         if (user) {
-            user.isPro = false;
+            // Não removemos o Pro imediatamente, mas marcamos como pendente
             user.subscriptionStatus = 'past_due';
             await user.save();
         }
@@ -115,10 +114,9 @@ const handleWebhook = async (req, res) => {
     }
 
     res.json({ received: true });
-
   } catch (error) {
-    console.error('❌ Webhook Logic Error:', error);
-    res.status(500).send('Webhook process failed');
+    console.error('Webhook Handler Error:', error);
+    res.status(500).send('Webhook Handler Error');
   }
 };
 

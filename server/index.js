@@ -1,107 +1,88 @@
 const express = require('express');
+const mongoose = require('mongoose');
 const cors = require('cors');
 const dotenv = require('dotenv');
-const path = require('path'); // Necessário para caminhos de arquivo
-
-// 1. Carregar variáveis de ambiente
-dotenv.config(); 
-
 const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
 const mongoSanitize = require('express-mongo-sanitize');
 const xss = require('xss-clean');
-const connectDB = require('./config/db');
-const { notFound, errorHandler } = require('./middleware/errorMiddleware');
+const path = require('path');
 
 // Rotas
-const analyzeRoutes = require('./routes/analyzeRoutes');
 const userRoutes = require('./routes/userRoutes');
-const jurisprudenceRoutes = require('./routes/jurisprudenceRoutes');
-const adminRoutes = require('./routes/adminRoutes');
+const analyzeRoutes = require('./routes/analyzeRoutes');
 const paymentRoutes = require('./routes/paymentRoutes');
+const jurisprudenceRoutes = require('./routes/jurisprudenceRoutes'); // Se tiver esta rota
 
-// Conectar ao Banco
-connectDB();
-
+// Configuração
+dotenv.config();
 const app = express();
 
-// Segurança
-app.use(helmet({ 
-  contentSecurityPolicy: false, 
-  crossOriginEmbedderPolicy: false,
-  crossOriginResourcePolicy: { policy: "cross-origin" } // Permite carregar arquivos
-}));
+// 📍 1. SEGURANÇA: HELMET (Headers HTTP Seguros)
+app.use(helmet());
 
-// CORS
-app.use(cors({ 
-  origin: process.env.CLIENT_URL || 'http://localhost:5173', 
-  credentials: true 
-}));
+// 📍 2. SEGURANÇA: LIMITADOR DE REQUISIÇÕES (DDoS / Brute Force Protection)
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutos
+  max: 100, // Limite de 100 requisições por IP
+  message: 'Muitas requisições deste IP, por favor tente novamente em 15 minutos.'
+});
+app.use('/api', limiter);
 
-// Webhook Stripe (Raw Body) - DEVE vir antes do parser JSON global
+// Limitador Específico para Login (Mais estrito)
+const authLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hora
+  max: 10, // Bloqueia após 10 tentativas falhadas
+  message: 'Muitas tentativas de login. Conta bloqueada temporariamente.'
+});
+app.use('/api/users/login', authLimiter);
+
+// 📍 3. WEBHOOK STRIPE (Precisa do RAW body antes do parser JSON global)
+// O middleware do webhook está dentro das rotas, mas o express.raw deve vir aqui se não for tratado lá
 app.use('/api/payments/webhook', express.raw({ type: 'application/json' }));
 
-// Parser Global
-app.use(express.json({ limit: '10kb' }));
+// 📍 4. PARSERS E SANITIZAÇÃO
+app.use(express.json({ limit: '10mb' })); // Limite de 10mb para JSON
+app.use(cors()); // Habilita Cross-Origin Resource Sharing
 
-// Sanitização
+// Data Sanitization contra NoSQL Injection (Ex: email: {"$gt": ""})
 app.use(mongoSanitize());
+
+// Data Sanitization contra XSS (Cross-Site Scripting)
 app.use(xss());
 
-// --- CORREÇÃO CRÍTICA: Servir arquivos estáticos (Uploads) ---
-// Isso permite que o frontend baixe os PDFs acessando /uploads/arquivo.pdf
+// 📍 5. SERVIR FICHEIROS ESTÁTICOS (Uploads - Opcional se usar S3)
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
-// Rotas da API
-app.use('/api/analyze', analyzeRoutes);
+// 📍 6. ROTAS DA API
 app.use('/api/users', userRoutes);
-app.use('/api/jurisprudence', jurisprudenceRoutes);
-app.use('/api/admin', adminRoutes);
+app.use('/api/analyze', analyzeRoutes);
 app.use('/api/payments', paymentRoutes);
+app.use('/api/jurisprudence', jurisprudenceRoutes);
 
-// Tratamento de Erros
-app.use(notFound);
-app.use(errorHandler);
+// Rota Base
+app.get('/', (req, res) => {
+  res.send('API LegalMind AI a funcionar com Segurança Máxima 🛡️');
+});
 
-const PORT = process.env.PORT || 5000;
-
-// --- INÍCIO DO BLOCO DE TESTE (Pode apagar depois) ---
-const { GoogleGenerativeAI } = require('@google/generative-ai');
-
-app.get('/api/test-ai', async (req, res) => {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) return res.status(500).json({ error: "Sem chave API configurada" });
-
-  const genAI = new GoogleGenerativeAI(apiKey);
-  
-  // Lista dos nomes mais prováveis
-  const candidates = [
-    "gemini-1.5-flash",
-    "gemini-1.5-flash-latest",
-    "gemini-pro",
-    "gemini-1.0-pro"
-  ];
-
-  let results = [];
-
-  for (const modelName of candidates) {
-    try {
-      console.log(`Testando: ${modelName}...`);
-      const model = genAI.getGenerativeModel({ model: modelName });
-      // Tenta gerar um simples "Oi"
-      await model.generateContent("Oi");
-      results.push({ model: modelName, status: "✅ FUNCIONANDO", message: "Este é o nome correto!" });
-    } catch (error) {
-      results.push({ model: modelName, status: "❌ FALHOU", error: error.message.split('[')[0] });
-    }
-  }
-
-  res.json({
-    libraryVersion: require('./package.json').dependencies['@google/generative-ai'],
-    testResults: results
+// Tratamento de Erros Global
+app.use((err, req, res, next) => {
+  console.error(err.stack);
+  res.status(500).json({ 
+    status: 'error', 
+    message: err.message || 'Erro interno do servidor.' 
   });
 });
-// --- FIM DO BLOCO DE TESTE ---
 
-app.listen(PORT, () => {
-  console.log(`🚀 Servidor rodando na porta ${PORT}`);
-});
+// 📍 7. CONEXÃO AO BANCO E SERVIDOR
+const PORT = process.env.PORT || 5000;
+
+mongoose.connect(process.env.MONGO_URI)
+  .then(() => {
+    console.log('✅ MongoDB Conectado');
+    app.listen(PORT, () => {
+      console.log(`🚀 Servidor a correr na porta ${PORT}`);
+      console.log(`🛡️  Modo de Segurança: ATIVADO`);
+    });
+  })
+  .catch((err) => console.log('❌ Erro MongoDB:', err));

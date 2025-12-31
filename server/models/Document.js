@@ -1,38 +1,39 @@
 const mongoose = require('mongoose');
 
-const DocumentSchema = new mongoose.Schema({
-  filename: { type: String, required: true },
-  filePath: { type: String },
-  originalText: { 
+const documentSchema = new mongoose.Schema({
+  user: { 
+    type: mongoose.Schema.Types.ObjectId, 
+    ref: 'User', 
+    required: true 
+  },
+  filename: { 
     type: String, 
     required: true 
   },
+  originalContent: {
+    type: String,
+    select: false // Otimização: Não traz o texto gigante nas listagens por padrão
+  },
   
-  // --- ANALYSIS DATA ---
-  sentimentScore: { type: Number },
-  sentimentComparative: { type: Number },
-  verdict: { type: String },
+  // Campos da IA
+  summary: String,
+  riskScore: Number, // 0 a 100
+  verdict: String,
+  strategicAdvice: String,
   keywords: {
     positive: [String],
     negative: [String]
   },
 
-  // --- AI PREMIUM DATA ---
-  aiSummary: { type: String },
-  riskAnalysis: { type: Number },
-  strategicAdvice: { type: String },
-
-  // --- USER RELATIONSHIP ---
-  userId: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
-    required: true
-  },
-
   createdAt: { 
     type: Date, 
     default: Date.now 
-  },
+  }
 });
 
-module.exports = mongoose.model('Document', DocumentSchema);
+// 📍 FASE 3: INDEXAÇÃO DE PERFORMANCE
+// Índice Composto: Otimiza a busca de "Histórico do Usuário X ordenado por Data"
+// Isso transforma uma busca de O(n) para O(log n) -> Extremamente rápido.
+documentSchema.index({ user: 1, createdAt: -1 });
+
+module.exports = mongoose.model('Document', documentSchema);

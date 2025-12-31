@@ -1,42 +1,35 @@
 import React, { useState, useEffect } from 'react';
-import Sidebar from '../components/Sidebar';
+import Layout from '../components/Layout'; // <--- O Segredo da Responsividade
 import api from '../services/api'; 
-import { Search, ChevronRight, Scale, AlertCircle, BookOpen, X, Copy, Check, Gavel } from 'lucide-react';
+import { Search, ChevronRight, Scale, BookOpen, X, Copy, Check, Gavel, Loader2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 const Jurisprudence = () => {
   const [items, setItems] = useState([]); 
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  const [error, setError] = useState(null);
   
-  // Estado para o Modal de Detalhes
+  // Modal State
   const [selectedItem, setSelectedItem] = useState(null);
   const [copied, setCopied] = useState(false);
 
   const fetchJurisprudence = async (term = '') => {
     setLoading(true);
-    setError(null);
     try {
       const endpoint = term 
         ? `/jurisprudence?search=${encodeURIComponent(term)}` 
         : '/jurisprudence';
       
-      const response = await api.get(endpoint);
+      const { data } = await api.get(endpoint);
+      
+      // Tratamento robusto para diferentes formatos de resposta
+      if (data.data && Array.isArray(data.data)) setItems(data.data);
+      else if (Array.isArray(data)) setItems(data);
+      else setItems([]);
 
-      if (response.data && Array.isArray(response.data.data)) {
-        setItems(response.data.data);
-      } else if (Array.isArray(response.data)) {
-        setItems(response.data);
-      } else {
-        setItems([]); 
-      }
     } catch (err) {
-      if (err.response && err.response.status === 404) {
-        setItems([]);
-      } else {
-        setError("Erro de conexão com a base de dados.");
-      }
+      console.error(err);
+      toast.error("Erro ao buscar jurisprudência.");
     } finally {
       setLoading(false);
     }
@@ -51,212 +44,147 @@ const Jurisprudence = () => {
     fetchJurisprudence(searchTerm);
   };
 
-  // Função para Copiar Ementa
   const handleCopy = (text) => {
     navigator.clipboard.writeText(text);
     setCopied(true);
-    toast.success("Ementa copiada para a área de transferência!");
+    toast.success("Ementa copiada!");
     setTimeout(() => setCopied(false), 2000);
   };
 
   return (
-    <div className="flex min-h-screen bg-slate-950 text-slate-100 font-sans">
-      <Sidebar />
-      
-      <main className="flex-1 flex flex-col h-screen overflow-y-auto relative">
-        <div className="md:hidden h-16 w-full shrink-0"></div>
+    <Layout>
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        
+        {/* Header e Busca */}
+        <div className="max-w-3xl mx-auto text-center mb-10">
+          <div className="inline-flex items-center justify-center p-3 bg-blue-100 dark:bg-blue-900/30 rounded-full text-blue-600 dark:text-blue-400 mb-4">
+             <Scale size={32} />
+          </div>
+          <h1 className="text-3xl font-bold text-slate-900 dark:text-white mb-2">Jurisprudência Inteligente</h1>
+          <p className="text-slate-500 dark:text-slate-400 mb-8">
+             Pesquise milhares de decisões dos tribunais superiores (STF, STJ) em segundos.
+          </p>
 
-        <div className="p-4 md:p-8 w-full max-w-6xl mx-auto">
-          
-          <header className="mb-8 animate-fade-in">
-            <h1 className="text-2xl md:text-3xl font-bold text-white flex items-center gap-2">
-              <Scale className="text-blue-500" /> Jurisprudência
-            </h1>
-            <p className="text-slate-400 text-sm mt-1">
-              Pesquise precedentes, súmulas e julgados recentes.
-            </p>
-          </header>
-
-          {/* Barra de Busca */}
-          <form onSubmit={handleSearch} className="relative mb-8 group z-10">
-            <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-              <Search className="text-slate-500 group-focus-within:text-blue-500 transition-colors" size={20} />
-            </div>
-            <input 
-              type="text" 
-              placeholder="Pesquise por tema, tribunal ou número (ex: Dano Moral)..." 
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full bg-slate-900 border border-slate-800 rounded-xl py-4 pl-12 pr-12 text-white placeholder-slate-500 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all shadow-lg"
-            />
-            <button 
-              type="submit"
-              className="absolute inset-y-2 right-2 bg-slate-800 hover:bg-blue-600 text-slate-300 hover:text-white px-4 rounded-lg transition-all font-medium"
-            >
-              Buscar
-            </button>
+          <form onSubmit={handleSearch} className="relative">
+             <Search className="absolute left-4 top-3.5 text-slate-400" size={20} />
+             <input 
+               type="text" 
+               className="w-full pl-12 pr-4 py-3.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none shadow-lg shadow-slate-200/50 dark:shadow-none transition-all"
+               placeholder="Ex: Dano moral extravio bagagem..."
+               value={searchTerm}
+               onChange={(e) => setSearchTerm(e.target.value)}
+             />
+             <button 
+               type="submit"
+               className="absolute right-2 top-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-1.5 rounded-lg text-sm font-bold transition-colors"
+             >
+               Buscar
+             </button>
           </form>
-
-          {/* Lista de Resultados */}
-          {loading ? (
-            <div className="flex flex-col items-center justify-center py-20 text-slate-500">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mb-4"></div>
-                <p>Carregando base jurídica...</p>
-            </div>
-          ) : error ? (
-            <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-xl text-red-400 flex items-center gap-2">
-              <AlertCircle size={20} /> {error}
-            </div>
-          ) : items.length === 0 ? (
-            <div className="text-center py-20 border border-dashed border-slate-800 rounded-xl bg-slate-900/30">
-              <BookOpen className="mx-auto h-12 w-12 text-slate-600 mb-3" />
-              <p className="text-slate-400 font-medium">Nenhum resultado encontrado.</p>
-            </div>
-          ) : (
-            <div className="grid gap-4 animate-fade-in-up pb-10">
-              {items.map((item) => (
-                <div 
-                  key={item._id} 
-                  onClick={() => setSelectedItem(item)} // AQUI: Abre o Modal
-                  className="bg-slate-900 p-6 rounded-xl border border-slate-800 hover:border-blue-500/50 hover:shadow-lg hover:shadow-blue-900/10 transition-all cursor-pointer group relative overflow-hidden"
-                >
-                  <div className={`absolute left-0 top-0 bottom-0 w-1 ${
-                    item.category?.includes('Penal') ? 'bg-red-500' : 
-                    item.category?.includes('Trabalho') ? 'bg-amber-500' : 
-                    'bg-blue-500'
-                  }`}></div>
-
-                  <div className="flex flex-col md:flex-row justify-between gap-4 md:items-start pl-2">
-                    <div className="flex-1">
-                      <div className="flex flex-wrap items-center gap-2 mb-3">
-                        <span className="bg-slate-800 text-slate-300 text-[10px] font-bold px-2 py-1 rounded border border-slate-700">
-                          {item.court || 'TJ'}
-                        </span>
-                        <span className="text-slate-500 text-xs font-mono">
-                          {item.processNumber}
-                        </span>
-                        <span className="ml-auto md:ml-0 text-slate-500 text-xs">
-                           {item.date ? new Date(item.date).toLocaleDateString('pt-BR') : 'Data n/d'}
-                        </span>
-                      </div>
-                      
-                      <h3 className="font-bold text-lg text-white mb-2 group-hover:text-blue-400 transition-colors">
-                        {item.title}
-                      </h3>
-                      
-                      <div className="text-slate-400 text-sm leading-relaxed mb-4 line-clamp-3">
-                        {item.description || item.summary}
-                      </div>
-
-                      {item.tags && (
-                        <div className="flex flex-wrap gap-2">
-                            {item.tags.map((tag, idx) => (
-                                <span key={idx} className="text-[10px] bg-blue-500/10 text-blue-400 px-2 py-1 rounded-full border border-blue-500/20">
-                                    #{tag}
-                                </span>
-                            ))}
-                        </div>
-                      )}
-                    </div>
-                    
-                    <div className="hidden md:flex flex-col items-center justify-center self-center pl-4 border-l border-slate-800">
-                       <ChevronRight className="text-slate-700 group-hover:text-blue-500 transition-colors" />
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
         </div>
 
-        {/* --- MODAL DE DETALHES (POPUP) --- */}
-        {selectedItem && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-fade-in">
-            <div className="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-3xl max-h-[90vh] overflow-y-auto shadow-2xl flex flex-col relative">
-              
-              {/* Cabeçalho do Modal */}
-              <div className="p-6 border-b border-slate-800 bg-slate-900 sticky top-0 z-10 flex justify-between items-start">
-                <div>
-                  <div className="flex items-center gap-2 mb-2">
-                    <span className="bg-blue-600 text-white text-xs font-bold px-2 py-1 rounded">
-                      {selectedItem.court}
-                    </span>
-                    <span className="text-slate-400 text-sm font-mono">
-                      {selectedItem.processNumber}
-                    </span>
-                  </div>
-                  <h2 className="text-xl font-bold text-white leading-tight">
-                    {selectedItem.title}
-                  </h2>
-                </div>
-                <button 
-                  onClick={() => setSelectedItem(null)}
-                  className="p-2 hover:bg-slate-800 rounded-full text-slate-400 hover:text-white transition-colors"
-                >
-                  <X size={24} />
-                </button>
-              </div>
-
-              {/* Corpo do Modal */}
-              <div className="p-6 space-y-6">
-                
-                {/* Data e Tags */}
-                <div className="flex flex-wrap justify-between items-center gap-4 text-sm text-slate-400 border-b border-slate-800 pb-4">
-                  <div className="flex items-center gap-2">
-                    <Gavel size={16} /> 
-                    <span>Julgado em: <strong className="text-slate-200">{new Date(selectedItem.date).toLocaleDateString('pt-BR')}</strong></span>
-                  </div>
-                  <div className="flex gap-2">
-                     {selectedItem.tags?.map(t => (
-                        <span key={t} className="bg-slate-800 px-2 py-1 rounded text-xs">{t}</span>
-                     ))}
-                  </div>
-                </div>
-
-                {/* Ementa / Descrição Completa */}
-                <div>
-                  <h3 className="text-sm font-bold text-slate-500 uppercase mb-3">Ementa / Resumo</h3>
-                  <div className="p-5 bg-slate-950 rounded-xl border border-slate-800 text-slate-300 leading-relaxed text-justify font-serif">
-                    {selectedItem.description || selectedItem.summary}
-                  </div>
-                </div>
-
-                {/* Veredito / Detalhes Adicionais (Se houver) */}
-                {selectedItem.summary && selectedItem.description && (
-                   <div>
-                     <h3 className="text-sm font-bold text-slate-500 uppercase mb-3">Inteiro Teor (Trecho)</h3>
-                     <p className="text-slate-400 text-sm leading-relaxed">
-                       {selectedItem.summary}
-                     </p>
+        {/* Lista de Resultados */}
+        {loading ? (
+           <div className="flex flex-col items-center justify-center py-12">
+             <Loader2 className="animate-spin text-blue-600 mb-4" size={40} />
+             <p className="text-slate-500">Consultando tribunais...</p>
+           </div>
+        ) : items.length === 0 ? (
+           <div className="text-center py-12 bg-slate-50 dark:bg-slate-900/50 rounded-2xl border border-dashed border-slate-200 dark:border-slate-800">
+             <p className="text-slate-500">Nenhum resultado encontrado para sua busca.</p>
+           </div>
+        ) : (
+           <div className="space-y-4">
+             {items.map((item) => (
+               <div 
+                 key={item._id}
+                 onClick={() => setSelectedItem(item)}
+                 className="bg-white dark:bg-slate-900 p-6 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm hover:shadow-md hover:border-blue-500/30 transition-all cursor-pointer group"
+               >
+                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-2">
+                   <div className="flex items-center gap-3">
+                     <span className="bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 px-3 py-1 rounded text-xs font-bold uppercase">
+                       {item.court}
+                     </span>
+                     <span className="text-blue-600 dark:text-blue-400 font-mono text-sm">
+                       {item.processNumber}
+                     </span>
                    </div>
-                )}
+                   <div className="flex items-center gap-2 text-xs text-slate-400">
+                      <Gavel size={14} />
+                      {new Date(item.date).toLocaleDateString()}
+                   </div>
+                 </div>
+                 
+                 <p className="text-slate-600 dark:text-slate-300 line-clamp-2 text-sm leading-relaxed group-hover:text-slate-900 dark:group-hover:text-white transition-colors">
+                   {item.summary}
+                 </p>
+               </div>
+             ))}
+           </div>
+        )}
 
+        {/* MODAL DETALHES JURISPRUDÊNCIA */}
+        {selectedItem && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in">
+            <div className="bg-white dark:bg-slate-900 w-full max-w-3xl max-h-[85vh] rounded-2xl shadow-2xl flex flex-col overflow-hidden animate-in slide-in-from-bottom-4">
+              
+              {/* Header */}
+              <div className="p-6 bg-slate-50 dark:bg-slate-950 border-b border-slate-100 dark:border-slate-800 flex justify-between items-start">
+                <div>
+                   <div className="flex items-center gap-3 mb-2">
+                     <span className="bg-blue-600 text-white px-3 py-1 rounded text-xs font-bold">{selectedItem.court}</span>
+                     <span className="text-slate-500 font-mono text-sm">{selectedItem.processNumber}</span>
+                   </div>
+                   <h2 className="font-bold text-slate-900 dark:text-white text-lg">Detalhes da Decisão</h2>
+                </div>
+                <button onClick={() => setSelectedItem(null)} className="p-2 hover:bg-slate-200 dark:hover:bg-slate-800 rounded-full transition-colors">
+                  <X size={20} className="text-slate-500" />
+                </button>
               </div>
 
-              {/* Rodapé com Ações */}
-              <div className="p-6 border-t border-slate-800 bg-slate-900 sticky bottom-0 flex justify-end gap-3">
-                <button 
-                  onClick={() => setSelectedItem(null)}
-                  className="px-4 py-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
-                >
-                  Fechar
-                </button>
-                
-                <button 
-                  onClick={() => handleCopy(`${selectedItem.title}\n${selectedItem.court} - ${selectedItem.processNumber}\n\n${selectedItem.description || selectedItem.summary}`)}
-                  className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-lg flex items-center gap-2 transition-colors border border-slate-700"
-                >
-                  {copied ? <Check size={18} className="text-green-400"/> : <Copy size={18} />}
-                  {copied ? "Copiado!" : "Copiar Ementa"}
-                </button>
+              {/* Conteúdo Scrollável */}
+              <div className="p-8 overflow-y-auto bg-white dark:bg-slate-900">
+                <div className="prose prose-slate dark:prose-invert max-w-none">
+                  <h4 className="text-sm uppercase tracking-wide text-slate-400 font-bold mb-2">Ementa / Resumo</h4>
+                  <p className="text-slate-700 dark:text-slate-300 leading-7 text-justify whitespace-pre-line">
+                    {selectedItem.summary}
+                  </p>
+                  
+                  {selectedItem.tags && selectedItem.tags.length > 0 && (
+                    <div className="mt-6 flex flex-wrap gap-2">
+                      {selectedItem.tags.map(tag => (
+                        <span key={tag} className="text-xs bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 px-2 py-1 rounded-full border border-slate-200 dark:border-slate-700">
+                          #{tag}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
 
+              {/* Footer Ações */}
+              <div className="p-4 border-t border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 flex justify-end gap-3">
+                 <button 
+                   onClick={() => handleCopy(`${selectedItem.court} - ${selectedItem.processNumber}\n\n${selectedItem.summary}`)}
+                   className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-700 dark:text-slate-300 font-medium hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors shadow-sm"
+                 >
+                   {copied ? <Check size={16} className="text-green-500"/> : <Copy size={16} />}
+                   {copied ? "Copiado!" : "Copiar Texto"}
+                 </button>
+                 <button 
+                   onClick={() => setSelectedItem(null)}
+                   className="px-6 py-2 bg-slate-900 dark:bg-blue-600 text-white rounded-lg font-bold hover:bg-slate-800 dark:hover:bg-blue-700 transition-colors shadow-lg"
+                 >
+                   Fechar
+                 </button>
+              </div>
             </div>
           </div>
         )}
 
-      </main>
-    </div>
+      </div>
+    </Layout>
   );
 };
 

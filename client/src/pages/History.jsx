@@ -1,20 +1,23 @@
 import React, { useEffect, useState } from 'react';
-import Sidebar from '../components/Sidebar';
+import Layout from '../components/Layout'; // <--- Integração com o novo Layout
 import api from '../services/api';
-import { FileText, Clock, Download, Eye, X, ShieldAlert, CheckCircle, Scale } from 'lucide-react';
+import { FileText, Clock, Download, Eye, X, ShieldAlert, CheckCircle, Search, Calendar } from 'lucide-react';
+import toast from 'react-hot-toast';
 
 const History = () => {
   const [cases, setCases] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [selectedCase, setSelectedCase] = useState(null); // Estado para o Modal
+  const [searchTerm, setSearchTerm] = useState('');
+  const [selectedCase, setSelectedCase] = useState(null);
 
   useEffect(() => {
     const fetchCases = async () => {
       try {
-        const { data } = await api.get('/analyze/history');
-        setCases(data);
+        const { data } = await api.get('/analyze/history'); // Certifique-se que essa rota existe no backend
+        setCases(Array.isArray(data) ? data : []);
       } catch (error) {
         console.error("Erro ao buscar histórico:", error);
+        toast.error("Não foi possível carregar o histórico.");
       } finally {
         setLoading(false);
       }
@@ -22,204 +25,210 @@ const History = () => {
     fetchCases();
   }, []);
 
-  // Função para gerar e baixar o arquivo de texto
+  // Filtro de busca local
+  const filteredCases = cases.filter(c => 
+    c.filename?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    c.verdict?.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  // Gerador de Relatório Simples (.txt)
   const handleDownload = (e, item) => {
-    e.stopPropagation(); // Impede que o modal abra ao clicar no download
-
+    e.stopPropagation();
+    
     const content = `
-RELATÓRIO DE INTELIGÊNCIA JURÍDICA - LEGALMIND
-------------------------------------------------
-Arquivo: ${item.filename}
-Data: ${new Date(item.createdAt).toLocaleDateString()}
-------------------------------------------------
+██╗      ███████╗ ██████╗  █████╗ ██╗     ███╗   ███╗██╗███╗   ██╗██████╗ 
+██║      ██╔════╝██╔════╝ ██╔══██╗██║     ████╗ ████║██║████╗  ██║██╔══██╗
+██║      █████╗  ██║  ███╗███████║██║     ██╔████╔██║██║██╔██╗ ██║██║  ██║
+██║      ██╔══╝  ██║   ██║██╔══██║██║     ██║╚██╔╝██║██║██║╚██╗██║██║  ██║
+███████╗ ███████╗╚██████╔╝██║  ██║███████╗██║ ╚═╝ ██║██║██║ ╚████║██████╔╝
+╚══════╝ ╚══════╝ ╚═════╝ ╚═╝  ╚═╝╚══════╝╚═╝     ╚═╝╚═╝╚═╝  ╚═══╝╚═════╝ 
 
-VEREDITO DA IA: ${item.verdict}
-PROBABILIDADE DE ÊXITO: ${item.riskScore}%
+RELATÓRIO DE INTELIGÊNCIA JURÍDICA
+------------------------------------------------------------------
+ARQUIVO: ${item.filename}
+DATA DA ANÁLISE: ${new Date(item.createdAt).toLocaleDateString('pt-BR')}
+ID DO PROCESSO: ${item._id}
+------------------------------------------------------------------
 
-RESUMO DO CASO:
-${item.summary}
+1. VEREDITO DA IA
+   ${item.verdict || 'Não concluído'}
 
-CONSELHO ESTRATÉGICO:
-${item.strategicAdvice || "Não disponível."}
+2. SCORE DE RISCO
+   ${item.riskScore}% (0 = Seguro, 100 = Perda Provável)
 
-------------------------------------------------
-Gerado automaticamente por LegalMind AI
+3. RESUMO DO CASO
+   ${item.summary || 'Sem resumo disponível.'}
+
+4. CONSELHO ESTRATÉGICO
+   ${item.strategicAdvice || 'Nenhuma estratégia específica gerada.'}
+
+------------------------------------------------------------------
+Gerado automaticamente por LegalMind AI.
+Este documento é informativo e não substitui consultoria jurídica humana.
     `;
 
-    const blob = new Blob([content], { type: 'text/plain' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `Relatorio_${item.filename}.txt`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    window.URL.revokeObjectURL(url);
+    const element = document.createElement("a");
+    const file = new Blob([content], {type: 'text/plain'});
+    element.href = URL.createObjectURL(file);
+    element.download = `Relatorio_LegalMind_${item.filename.split('.')[0]}.txt`;
+    document.body.appendChild(element);
+    element.click();
+    toast.success("Download iniciado!");
   };
 
   return (
-    <div className="flex min-h-screen bg-slate-950 text-slate-100 font-sans">
-      <Sidebar />
-      <main className="flex-1 p-4 md:p-8 overflow-y-auto h-screen relative">
+    <Layout>
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         
-        <div className="md:hidden h-16 w-full shrink-0"></div>
-
-        <h1 className="text-2xl md:text-3xl font-bold mb-8 text-white flex items-center gap-2">
-          <Clock className="text-blue-500" /> Meus Casos
-        </h1>
-
-        {loading ? (
-          <div className="text-slate-500 animate-pulse">Carregando histórico...</div>
-        ) : cases.length === 0 ? (
-          <div className="p-8 border border-dashed border-slate-800 rounded-xl text-center">
-            <p className="text-slate-400 mb-2">Nenhum caso analisado ainda.</p>
+        {/* Header da Página */}
+        <div className="flex flex-col md:flex-row justify-between items-center mb-8 gap-4">
+          <div>
+            <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Meus Casos</h1>
+            <p className="text-slate-500 dark:text-slate-400 text-sm">Gerencie seu histórico de análises jurídicas.</p>
           </div>
+          
+          {/* Barra de Busca */}
+          <div className="relative w-full md:w-64">
+            <Search className="absolute left-3 top-2.5 text-slate-400" size={18} />
+            <input 
+              type="text" 
+              placeholder="Buscar por nome..." 
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-10 pr-4 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+            />
+          </div>
+        </div>
+
+        {/* Lista de Casos (Grid) */}
+        {loading ? (
+           <div className="text-center py-20">
+             <div className="animate-spin w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full mx-auto mb-4"></div>
+             <p className="text-slate-500">Carregando histórico...</p>
+           </div>
+        ) : filteredCases.length === 0 ? (
+           <div className="text-center py-20 bg-white dark:bg-slate-900 rounded-2xl border border-dashed border-slate-300 dark:border-slate-700">
+             <FileText size={48} className="mx-auto text-slate-300 mb-4" />
+             <p className="text-slate-500">Nenhuma análise encontrada.</p>
+           </div>
         ) : (
-          <div className="grid gap-4">
-            {cases.map((c) => (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {filteredCases.map((item) => (
               <div 
-                key={c._id} 
-                onClick={() => setSelectedCase(c)} // Abre o Modal
-                className="bg-slate-900 p-6 rounded-xl border border-slate-800 hover:border-blue-500/50 hover:bg-slate-800/50 transition-all shadow-lg cursor-pointer group"
+                key={item._id}
+                onClick={() => setSelectedCase(item)}
+                className="bg-white dark:bg-slate-900 rounded-xl p-5 border border-slate-200 dark:border-slate-800 shadow-sm hover:shadow-md hover:border-blue-500/50 transition-all cursor-pointer group"
               >
-                <div className="flex flex-col md:flex-row justify-between gap-4 md:items-center">
-                  
-                  <div className="flex items-start gap-4">
-                    <div className="p-3 bg-slate-950 rounded-lg border border-slate-800 group-hover:border-blue-500/30 transition-colors">
-                      <FileText className="text-blue-400" size={24} />
-                    </div>
-                    <div>
-                      <h3 className="font-bold text-white text-lg group-hover:text-blue-400 transition-colors">{c.filename}</h3>
-                      <div className="flex items-center gap-2 mt-1">
-                        <span className="text-xs text-slate-500">
-                          {new Date(c.createdAt).toLocaleDateString()} às {new Date(c.createdAt).toLocaleTimeString().slice(0,5)}
-                        </span>
-                      </div>
-                    </div>
+                <div className="flex justify-between items-start mb-4">
+                  <div className="p-2 bg-slate-100 dark:bg-slate-800 rounded-lg text-blue-600 dark:text-blue-400 group-hover:bg-blue-50 dark:group-hover:bg-blue-900/20 transition-colors">
+                    <FileText size={20} />
                   </div>
-                  
-                  <div className="flex items-center gap-4">
-                    <div className="text-right hidden sm:block">
-                      <span className="text-[10px] text-slate-500 uppercase font-bold">Êxito</span>
-                      <p className="text-xl font-bold text-white">{c.riskScore}%</p>
-                    </div>
-
-                    <div className={`px-4 py-2 rounded-full text-xs font-bold border ${
-                      c.verdict?.includes('Favor') 
-                        ? 'bg-green-500/10 text-green-400 border-green-500/20' 
-                        : 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20'
-                    }`}>
-                      {c.verdict || 'Analisado'}
-                    </div>
-
-                    {/* Botão de Download na lista */}
-                    <button 
-                      onClick={(e) => handleDownload(e, c)}
-                      className="p-2 hover:bg-slate-700 rounded-full text-slate-400 hover:text-white transition-colors"
-                      title="Baixar Relatório"
-                    >
-                      <Download size={20} />
-                    </button>
-                  </div>
+                  <span className={`text-xs font-bold px-2 py-1 rounded-full border ${
+                    item.riskScore > 70 
+                      ? 'bg-red-50 text-red-600 border-red-100 dark:bg-red-900/20 dark:border-red-900/30' 
+                      : item.riskScore > 30 
+                      ? 'bg-yellow-50 text-yellow-600 border-yellow-100 dark:bg-yellow-900/20 dark:border-yellow-900/30'
+                      : 'bg-green-50 text-green-600 border-green-100 dark:bg-green-900/20 dark:border-green-900/30'
+                  }`}>
+                    Risco {item.riskScore}%
+                  </span>
                 </div>
                 
-                <div className="mt-4 pt-4 border-t border-slate-800/50">
-                  <p className="text-sm text-slate-400 line-clamp-2">{c.summary}</p>
-                  <p className="text-xs text-blue-400 mt-2 flex items-center gap-1 group-hover:underline">
-                    <Eye size={12} /> Clique para ver detalhes completos
-                  </p>
+                <h3 className="font-bold text-slate-800 dark:text-white mb-1 truncate">{item.filename}</h3>
+                <div className="flex items-center gap-2 text-xs text-slate-500 mb-4">
+                  <Calendar size={12} />
+                  {new Date(item.createdAt).toLocaleDateString()}
+                </div>
+
+                <div className="flex items-center justify-between mt-auto pt-4 border-t border-slate-100 dark:border-slate-800">
+                  <span className="text-xs font-medium text-slate-600 dark:text-slate-400">Ver detalhes</span>
+                  <button 
+                    onClick={(e) => handleDownload(e, item)}
+                    className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded text-slate-400 hover:text-blue-600 transition-colors"
+                    title="Baixar Relatório"
+                  >
+                    <Download size={16} />
+                  </button>
                 </div>
               </div>
             ))}
           </div>
         )}
 
-        {/* --- MODAL DE DETALHES --- */}
+        {/* MODAL DE DETALHES */}
         {selectedCase && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
-            <div className="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-2xl flex flex-col">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in">
+            <div className="bg-white dark:bg-slate-900 w-full max-w-2xl max-h-[90vh] rounded-2xl shadow-2xl overflow-hidden flex flex-col animate-in zoom-in-95 duration-200">
               
-              {/* Header do Modal */}
-              <div className="p-6 border-b border-slate-800 flex justify-between items-start sticky top-0 bg-slate-900 z-10">
-                <div>
-                  <h2 className="text-xl font-bold text-white flex items-center gap-2">
-                    <Scale className="text-blue-500" /> Detalhes da Análise
-                  </h2>
-                  <p className="text-sm text-slate-400 mt-1">{selectedCase.filename}</p>
-                </div>
-                <button 
-                  onClick={() => setSelectedCase(null)}
-                  className="p-1 hover:bg-slate-800 rounded-full text-slate-400 hover:text-white"
-                >
+              {/* Header Modal */}
+              <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-slate-50 dark:bg-slate-950">
+                <h3 className="font-bold text-lg text-slate-900 dark:text-white flex items-center gap-2">
+                  <FileText size={20} className="text-blue-500" />
+                  Detalhes da Análise
+                </h3>
+                <button onClick={() => setSelectedCase(null)} className="text-slate-400 hover:text-red-500 transition-colors">
                   <X size={24} />
                 </button>
               </div>
 
-              {/* Corpo do Modal */}
-              <div className="p-6 space-y-6">
+              {/* Corpo com Scroll */}
+              <div className="p-6 overflow-y-auto space-y-6">
                 
-                {/* Score e Veredito */}
+                {/* Status Cards */}
                 <div className="grid grid-cols-2 gap-4">
-                  <div className="p-4 bg-slate-950 rounded-xl border border-slate-800 text-center">
-                    <p className="text-xs text-slate-500 uppercase font-bold">Probabilidade de Êxito</p>
-                    <p className="text-3xl font-bold text-white mt-1">{selectedCase.riskScore}%</p>
-                  </div>
-                  <div className="p-4 bg-slate-950 rounded-xl border border-slate-800 text-center flex flex-col items-center justify-center">
-                    <p className="text-xs text-slate-500 uppercase font-bold mb-1">Veredito</p>
-                    <span className={`px-3 py-1 rounded-full text-sm font-bold ${
-                      selectedCase.verdict?.includes('Favor') ? 'text-green-400 bg-green-400/10' : 'text-yellow-400 bg-yellow-400/10'
-                    }`}>
-                      {selectedCase.verdict}
-                    </span>
-                  </div>
+                   <div className="p-4 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700">
+                      <span className="text-xs text-slate-500 uppercase font-bold">Veredito</span>
+                      <p className="font-bold text-slate-800 dark:text-white text-lg">{selectedCase.verdict || 'N/A'}</p>
+                   </div>
+                   <div className="p-4 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700">
+                      <span className="text-xs text-slate-500 uppercase font-bold">Risco Calculado</span>
+                      <div className="flex items-center gap-2">
+                        <div className="flex-1 h-2 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
+                           <div className="h-full bg-blue-600" style={{ width: `${selectedCase.riskScore}%` }}></div>
+                        </div>
+                        <span className="font-bold text-slate-800 dark:text-white">{selectedCase.riskScore}%</span>
+                      </div>
+                   </div>
                 </div>
 
-                {/* Resumo */}
                 <div>
-                  <h3 className="text-sm font-bold text-white mb-2 flex items-center gap-2">
-                    <FileText size={16} /> Resumo dos Fatos
-                  </h3>
-                  <div className="p-4 bg-slate-950 rounded-xl border border-slate-800 text-slate-300 text-sm leading-relaxed text-justify">
+                  <h4 className="font-bold text-slate-800 dark:text-white mb-2">Resumo</h4>
+                  <div className="p-4 bg-slate-50 dark:bg-slate-950/50 rounded-xl border border-slate-100 dark:border-slate-800 text-sm text-slate-600 dark:text-slate-300 leading-relaxed whitespace-pre-line">
                     {selectedCase.summary}
                   </div>
                 </div>
 
-                {/* Conselho Estratégico (A parte mais importante) */}
                 {selectedCase.strategicAdvice && (
-                  <div>
-                    <h3 className="text-sm font-bold text-white mb-2 flex items-center gap-2">
-                      <ShieldAlert size={16} className="text-blue-400" /> Conselho Estratégico
-                    </h3>
-                    <div className="p-4 bg-blue-500/5 rounded-xl border border-blue-500/20 text-slate-300 text-sm leading-relaxed text-justify">
-                      {selectedCase.strategicAdvice}
-                    </div>
-                  </div>
+                   <div className="bg-amber-50 dark:bg-amber-900/10 border border-amber-100 dark:border-amber-900/20 p-4 rounded-xl">
+                      <h4 className="font-bold text-amber-800 dark:text-amber-500 mb-1 flex items-center gap-2">
+                        <ShieldAlert size={16} /> Conselho Estratégico
+                      </h4>
+                      <p className="text-sm text-amber-900/80 dark:text-amber-200/80">{selectedCase.strategicAdvice}</p>
+                   </div>
                 )}
-
               </div>
 
-              {/* Footer do Modal */}
-              <div className="p-6 border-t border-slate-800 bg-slate-900 sticky bottom-0 flex justify-end gap-3">
+              {/* Footer Modal */}
+              <div className="p-4 border-t border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 flex justify-end gap-3">
                 <button 
                   onClick={() => setSelectedCase(null)}
-                  className="px-4 py-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+                  className="px-4 py-2 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-800 rounded-lg transition-colors text-sm font-medium"
                 >
                   Fechar
                 </button>
                 <button 
                   onClick={(e) => handleDownload(e, selectedCase)}
-                  className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg flex items-center gap-2 transition-colors font-medium shadow-lg shadow-blue-900/20"
+                  className="px-4 py-2 bg-slate-900 dark:bg-blue-600 text-white rounded-lg hover:bg-slate-800 dark:hover:bg-blue-700 transition-colors text-sm font-bold flex items-center gap-2"
                 >
-                  <Download size={18} /> Baixar Relatório
+                  <Download size={16} /> Baixar Relatório
                 </button>
               </div>
-
             </div>
           </div>
         )}
 
-      </main>
-    </div>
+      </div>
+    </Layout>
   );
 };
 

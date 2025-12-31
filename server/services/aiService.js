@@ -1,96 +1,104 @@
-// server/services/aiService.js
-// ESTRATÉGIA: AUTO-DISCOVERY (Descobre o modelo disponível automaticamente)
+const { GoogleGenerativeAI } = require("@google/generative-ai");
+const dotenv = require('dotenv');
 
+// Carrega variáveis de ambiente
+dotenv.config();
+
+const apiKey = process.env.GEMINI_API_KEY;
+if (!apiKey) {
+  console.error("❌ ERRO CRÍTICO: GEMINI_API_KEY não encontrada no .env");
+}
+
+const genAI = new GoogleGenerativeAI(apiKey);
+
+// CONFIGURAÇÃO DO MODELO
+// Usamos o 'gemini-1.5-flash' para garantir velocidade e evitar erros de cota (429).
+const MODEL_NAME = "gemini-1.5-flash"; 
+
+const generationConfig = {
+  temperature: 0.4, // Mais preciso, menos criativo
+  topP: 0.95,
+  topK: 64,
+  maxOutputTokens: 8192,
+  responseMimeType: "application/json", // Força resposta JSON limpa
+};
+
+/**
+ * Gera análise jurídica estruturada.
+ */
 const generateLegalAnalysis = async (text, filename) => {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) throw new Error("Chave API ausente.");
-
   try {
-    // PASSO 1: Perguntar ao Google "O que eu posso usar?"
-    // Isso evita o erro 404 de "Modelo não encontrado"
-    console.log("🔍 Consultando lista de modelos disponíveis na sua conta...");
-    
-    const listUrl = `https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`;
-    const listResponse = await fetch(listUrl);
-    
-    if (!listResponse.ok) {
-      throw new Error(`Erro ao listar modelos: ${listResponse.status}`);
+    if (!text || text.length < 50) {
+      throw new Error("O texto extraído é muito curto ou vazio.");
     }
 
-    const listData = await listResponse.json();
-    
-    // Filtra um modelo que seja 'gemini' e suporte 'generateContent'
-    const availableModel = listData.models?.find(m => 
-      m.name.includes('gemini') && 
-      m.supportedGenerationMethods.includes('generateContent')
-    );
-
-    if (!availableModel) {
-      throw new Error("Nenhum modelo Gemini disponível para esta Chave API.");
-    }
-
-    // O nome vem como 'models/gemini-1.5-flash-001', por exemplo.
-    // Nós usamos ele EXATAMENTE como veio.
-    const modelName = availableModel.name.replace('models/', '');
-    console.log(`✅ Modelo encontrado e selecionado: ${modelName}`);
-
-    // PASSO 2: Usar o modelo encontrado
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
+    const model = genAI.getGenerativeModel({ 
+      model: MODEL_NAME,
+      generationConfig: generationConfig
+    });
 
     const prompt = `
-      ATUE COMO ADVOGADO.
-      Analise: "${filename}".
-      Texto: "${text.substring(0, 20000).replace(/"/g, "'").replace(/\n/g, " ")}"
+      Você é um Assistente Jurídico Sênior (LegalMind AI). Analise o documento anexo: "${filename}".
+      
+      CONTEXTO (Primeiros 30k caracteres):
+      ${text.substring(0, 30000)}
 
-      RETORNE APENAS JSON:
+      TAREFA:
+      Forneça uma análise técnica e imparcial em formato JSON estrito.
+      
+      JSON SCHEMA OBRIGATÓRIO:
       {
-        "summary": "Resumo jurídico.",
-        "riskScore": 50,
-        "verdict": "Favorável",
-        "keywords": { "positive": [], "negative": [] },
-        "strategicAdvice": "Conselho."
+        "summary": "Resumo executivo do documento (máx 3 parágrafos).",
+        "riskScore": (número 0-100, onde 100 é risco crítico),
+        "verdict": "Veredito curto (ex: Favorável, Risco Moderado, Crítico)",
+        "strategicAdvice": "Conselho prático para o advogado.",
+        "keywords": {
+          "positive": ["lista", "termos", "bons"],
+          "negative": ["lista", "termos", "ruins"]
+        }
       }
     `;
 
-    const response = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: {
-          temperature: 0.2
-        }
-      })
-    });
+    console.log(`🤖 Enviando para IA (${MODEL_NAME})...`);
+    
+    const result = await model.generateContent(prompt);
+    const response = await result.response;
+    const textOutput = response.text();
 
-    if (!response.ok) {
-      const err = await response.text();
-      throw new Error(`Google Error (${modelName}): ${response.status} - ${err}`);
-    }
+    // Tratamento e Parse do JSON
+    let cleanJson = textOutput.replace(/```json/g, '').replace(/```/g, '').trim();
+    
+    try {
+      const jsonResponse = JSON.parse(cleanJson);
+      
+      // Validação de segurança dos campos
+      return {
+        summary: jsonResponse.summary || "Resumo indisponível.",
+        riskScore: typeof jsonResponse.riskScore === 'number' ? jsonResponse.riskScore : 50,
+        verdict: jsonResponse.verdict || "Em análise",
+        strategicAdvice: jsonResponse.strategicAdvice || "Sem conselho específico.",
+        keywords: jsonResponse.keywords || { positive: [], negative: [] }
+      };
 
-    const data = await response.json();
-    let textOutput = data.candidates?.[0]?.content?.parts?.[0]?.text || "{}";
-
-    // Limpeza Manual (Garantia)
-    textOutput = textOutput.replace(/```json/g, '').replace(/```/g, '').trim();
-    const start = textOutput.indexOf('{');
-    const end = textOutput.lastIndexOf('}');
-
-    if (start !== -1 && end !== -1) {
-      return JSON.parse(textOutput.substring(start, end + 1));
-    } else {
-      throw new Error("Formato de resposta inválido.");
+    } catch (parseError) {
+      console.error("❌ Erro de Parse JSON:", parseError);
+      return {
+        summary: "Erro ao processar resposta da IA. Tente novamente.",
+        riskScore: 0,
+        verdict: "Erro Técnico",
+        strategicAdvice: "Ocorreu uma falha na formatação da resposta.",
+        keywords: { positive: [], negative: [] }
+      };
     }
 
   } catch (error) {
-    console.error("❌ Erro IA:", error.message);
-    return {
-      summary: `Erro: ${error.message}`,
-      riskScore: 0,
-      verdict: "Erro",
-      keywords: { positive: [], negative: [] },
-      strategicAdvice: "Verifique sua chave ou permissões no Google AI Studio."
-    };
+    console.error(`❌ Erro AI Service:`, error.message);
+    
+    if (error.message.includes('429') || error.message.includes('Quota')) {
+      throw new Error("Sistema sobrecarregado (Cota da IA). Aguarde 1 minuto.");
+    }
+    
+    throw new Error("Falha na comunicação com a Inteligência Artificial.");
   }
 };
 
