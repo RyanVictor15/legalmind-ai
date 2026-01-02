@@ -4,6 +4,11 @@ const { z } = require('zod'); // Import Zod
 const User = require('../models/User');
 const Document = require('../models/Document');
 const sendEmail = require('../utils/sendEmail');
+const User = require('../models/User');
+const Document = require('../models/Document');
+const Stripe = require('stripe');
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
+const { sendWelcomeEmail } = require('../services/emailService');
 
 // --- ZOD SCHEMAS ---
 const registerSchema = z.object({
@@ -25,36 +30,41 @@ const generateToken = (id, tokenVersion) => {
 
 // 1. REGISTER
 const registerUser = async (req, res) => {
-  try {
-    // 1. Validation (Security Hardening)
-    const { firstName, lastName, email, password } = registerSchema.parse(req.body);
+  const { firstName, lastName, email, password } = req.body;
 
-    // 2. Check Duplicates
+  try {
     const userExists = await User.findOne({ email });
+
     if (userExists) {
-      return res.status(400).json({ status: 'error', message: 'Email already registered.' });
+      return res.status(400).json({ message: 'Usuário já existe' });
     }
 
-    // 3. Create User
-    const user = await User.create({ firstName, lastName, email, password });
+    const user = await User.create({
+      firstName,
+      lastName,
+      email,
+      password,
+    });
 
     if (user) {
+      // 📧 DISPARAR EMAIL DE BOAS-VINDAS
+      // Não usamos 'await' aqui propositalmente para não fazer o usuário esperar o email ser enviado
+      sendWelcomeEmail(user.email, user.firstName).catch(err => console.error("Erro ao enviar email:", err));
+
       res.status(201).json({
         _id: user._id,
         firstName: user.firstName,
         lastName: user.lastName,
         email: user.email,
-        token: generateToken(user._id, user.tokenVersion),
-        isPro: user.isPro
+        isAdmin: user.isAdmin,
+        isPro: user.isPro,
+        token: generateToken(user._id),
       });
     } else {
-      res.status(400).json({ status: 'error', message: 'Invalid user data.' });
+      res.status(400).json({ message: 'Dados inválidos de usuário' });
     }
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      return res.status(400).json({ status: 'error', message: error.errors[0].message });
-    }
-    res.status(500).json({ status: 'error', message: 'Server error during registration.' });
+    res.status(500).json({ message: error.message });
   }
 };
 
@@ -327,13 +337,66 @@ const upgradeToPro = async (req, res) => {
 // 9. DELETE ACCOUNT
 const deleteAccount = async (req, res) => {
   try {
-    const userId = req.user._id;
-    await Document.deleteMany({ userId: userId });
-    await User.findByIdAndDelete(userId);
-    
-    res.json({ status: 'success', message: 'User and data deleted.' });
+    const user = await User.findById(req.user._id);
+
+    if (!user) {
+      return res.status(404).json({ message: 'Usuário não encontrado.' });
+    }
+
+    // 1. CANCELAR ASSINATURA NO STRIPE (Se existir)
+    if (user.subscriptionId && user.subscriptionStatus === 'active') {
+      try {
+        await stripe.subscriptions.cancel(user.subscriptionId);
+        console.log(`💳 Assinatura Stripe cancelada para: ${user.email}`);
+      } catch (stripeError) {
+        console.error('Erro ao cancelar Stripe (prosseguindo com exclusão local):', stripeError.message);
+        // Não paramos o fluxo se der erro no Stripe, pois queremos garantir que o usuário seja deletado localmente
+      }
+    }
+
+    // 2. APAGAR TODOS OS DOCUMENTOS/ANÁLISES
+    const docsDeleted = await Document.deleteMany({ user: user._id });
+    console.log(`📄 ${docsDeleted.deletedCount} documentos apagados.`);
+
+    // 3. APAGAR O USUÁRIO
+    await User.findByIdAndDelete(user._id);
+    console.log(`👤 Usuário ${user.email} deletado permanentemente.`);
+
+    res.json({ message: 'Conta excluída com sucesso.' });
+
   } catch (error) {
-    res.status(500).json({ status: 'error', message: 'Delete account error.' });
+    console.error('Erro ao deletar conta:', error);
+    res.status(500).json({ message: 'Erro ao processar exclusão de conta.' });
+  }
+};
+
+const completeOnboarding = async (req, res) => {
+  try {
+    const { role, specialty, mainGoal } = req.body;
+    
+    const user = await User.findById(req.user._id);
+
+    if (!user) {
+      return res.status(404).json({ message: 'Usuário não encontrado.' });
+    }
+
+    // Atualiza preferências e marca como concluído
+    user.preferences = { role, specialty, mainGoal };
+    user.hasOnboarded = true;
+    
+    await user.save();
+
+    res.json({ 
+      message: 'Perfil atualizado com sucesso.',
+      user: {
+        ...user._doc, // Retorna dados atualizados para o frontend
+        token: req.token // Opcional, dependendo da sua estratégia de refresh
+      }
+    });
+
+  } catch (error) {
+    console.error('Erro no onboarding:', error);
+    res.status(500).json({ message: 'Erro ao salvar preferências.' });
   }
 };
 
@@ -346,5 +409,6 @@ module.exports = {
   resetPassword,
   upgradeToPro,
   verifyTwoFactor,
-  deleteAccount
+  deleteAccount,
+  completeOnboarding
 };

@@ -6,10 +6,12 @@ import {
   History, 
   Scale, 
   LogOut, 
-  UserCircle 
+  UserCircle,
+  CreditCard
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import ThemeToggle from './ThemeToggle'; 
+import ThemeToggle from './ThemeToggle';
+import NotificationCenter from './NotificationCenter';
 
 const Sidebar = ({ onMobileClick }) => {
   const location = useLocation();
@@ -20,6 +22,7 @@ const Sidebar = ({ onMobileClick }) => {
     // "Nova Análise" removida daqui para não ficar redundante, já que o Dashboard tem o upload principal
     { path: '/history', icon: History, label: 'Meus Casos' }, 
     { path: '/jurisprudence', icon: Scale, label: 'Jurisprudência' },
+    { path: '/billing', icon: CreditCard, label: 'Assinatura' },
   ];
 
   const isActive = (path) => location.pathname === path;
@@ -70,6 +73,11 @@ const Sidebar = ({ onMobileClick }) => {
           </Link>
         ))}
       </nav>
+
+      {/* ÁREA DE UTILITÁRIOS (Novo) */}
+<div className="px-4 py-2 flex justify-end gap-2 border-t border-slate-100 dark:border-slate-800">
+  <NotificationCenter />
+</div>
 
       {/* FOOTER (Theme & User) */}
       <div className="p-4 border-t border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50">

@@ -1,7 +1,8 @@
 const express = require('express');
 const router = express.Router();
 
-// Import ALL Controller functions
+// 1. IMPORTAR TODAS AS FUNÇÕES DO CONTROLLER
+// (Adicionei 'completeOnboarding' que estava faltando na sua lista)
 const { 
   registerUser, 
   loginUser, 
@@ -11,14 +12,21 @@ const {
   resetPassword,
   upgradeToPro,
   verifyTwoFactor,
-  deleteAccount 
+  deleteAccount,
+  completeOnboarding // 📍 IMPORTANTE: Adicionado aqui
 } = require('../controllers/userController');
 
 const { protect } = require('../middleware/authMiddleware');
 
-// Auth Routes
-router.post('/register', registerUser);
-router.post('/login', loginUser);
+// 2. IMPORTAR A BLINDAGEM (ZOD)
+const validateRequest = require('../middleware/validateRequest');
+const { registerSchema, loginSchema, onboardingSchema } = require('../schemas/userSchemas');
+
+// Auth Routes (Agora protegidas pelo Zod)
+// O validateRequest verifica os dados ANTES de chamar o controller
+router.post('/register', validateRequest(registerSchema), registerUser);
+router.post('/login', validateRequest(loginSchema), loginUser);
+
 router.post('/verify-2fa', verifyTwoFactor);
 
 // Profile Routes (Protected)
@@ -35,5 +43,8 @@ router.put('/reset-password/:resetToken', resetPassword);
 
 // Account Management
 router.delete('/profile', protect, deleteAccount);
+
+// Onboarding Route (Agora protegida pelo Zod)
+router.post('/onboarding', protect, validateRequest(onboardingSchema), completeOnboarding);
 
 module.exports = router;

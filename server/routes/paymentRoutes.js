@@ -1,13 +1,17 @@
 const express = require('express');
 const router = express.Router();
-const { createCheckoutSession, handleWebhook } = require('../controllers/paymentController');
+const { 
+  createCheckoutSession, 
+  handleWebhook, 
+  createCustomerPortalSession // Nova importação
+} = require('../controllers/paymentController');
 const { protect } = require('../middleware/authMiddleware');
 
-// Protected route (User must be logged in to pay)
+// Rotas Protegidas (Exigem Login)
 router.post('/create-checkout-session', protect, createCheckoutSession);
+router.post('/create-portal-session', protect, createCustomerPortalSession); // 📍 Nova Rota
 
-// Public route (Stripe calls this, signature validation handles security)
-// Note: The raw body parsing is handled in index.js for this specific path
+// Rota Pública (Webhook do Stripe)
 router.post('/webhook', handleWebhook);
 
 module.exports = router;

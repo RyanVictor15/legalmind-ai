@@ -1,86 +1,59 @@
-const fs = require('fs');
-const pdfParse = require('pdf-parse');
+const analyzeQueue = require('../queues/analyzeQueue');
+const User = require('../models/User');
 const Document = require('../models/Document');
-const User = require('../models/User'); // Precisamos do Model de Usuário para atualizar créditos
-const { generateLegalAnalysis } = require('../services/aiService');
+const fs = require('fs');
 
-// Configuração do Limite Gratuito
 const FREE_LIMIT = 3;
 
+// Controlador Principal (Versão Fila/Assíncrona)
 const analyzeDocument = async (req, res) => {
+  // 1. Validação Básica
   if (!req.file) {
     return res.status(400).json({ message: 'Nenhum arquivo enviado.' });
   }
 
-  const filePath = req.file.path;
-
   try {
-    // 📍 1. VERIFICAÇÃO DE CRÉDITOS (O PAYWALL)
-    // Buscamos o usuário atualizado no banco
+    // 2. Validação de Créditos (Paywall)
+    // Continuamos fazendo isso aqui para rejeitar rápido se não tiver crédito
     const user = await User.findById(req.user._id);
     
-    // Se NÃO for Pro e já estourou o limite...
     if (!user.isPro && user.usageCount >= FREE_LIMIT) {
-      // Deleta o arquivo imediatamente para não ocupar espaço
-      if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+      // Limpa arquivo se foi rejeitado
+      if (fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
       
       return res.status(403).json({ 
         message: 'Limite gratuito atingido. Faça o upgrade para continuar.',
-        isLimitReached: true // Flag para o frontend abrir o modal de pagamento
+        isLimitReached: true 
       });
     }
 
-    console.log(`📄 Processando: ${req.file.originalname} (Uso: ${user.usageCount}/${FREE_LIMIT})`);
-
-    // 2. EXTRAÇÃO
-    let textContent = '';
-    if (req.file.mimetype === 'application/pdf') {
-       const dataBuffer = fs.readFileSync(filePath);
-       const pdfData = await pdfParse(dataBuffer);
-       textContent = pdfData.text;
-    } else {
-       textContent = fs.readFileSync(filePath, 'utf-8');
-    }
-    
-    // Limpeza
-    textContent = textContent.replace(/\n\s*\n/g, '\n');
-
-    // 3. IA (Gera Custo)
-    const analysis = await generateLegalAnalysis(textContent, req.file.originalname);
-
-    // 4. PERSISTÊNCIA DO DOCUMENTO
-    const newDoc = await Document.create({
-        user: req.user._id,
-        filename: req.file.originalname,
-        originalContent: textContent.substring(0, 5000),
-        summary: analysis.summary,
-        riskScore: analysis.riskScore,
-        verdict: analysis.verdict,
-        strategicAdvice: analysis.strategicAdvice,
-        keywords: analysis.keywords
+    // 3. ENFILEIRAMENTO (A Mágica da Fase 3)
+    // Em vez de processar agora, jogamos para o Redis/BullMQ
+    await analyzeQueue.add('process-document', {
+      filePath: req.file.path, // Caminho do arquivo temporário
+      originalName: req.file.originalname,
+      mimetype: req.file.mimetype,
+      userId: req.user._id // Passamos o ID para o Worker saber de quem é
     });
 
-    // 📍 5. COBRANÇA (Incrementa Contador)
-    // Se não for Pro, aumenta o contador de uso
-    if (!user.isPro) {
-      user.usageCount += 1;
-      await user.save();
-    }
+    console.log(`📥 Arquivo ${req.file.originalname} enviado para a fila.`);
 
-    res.status(201).json(newDoc);
+    // 4. RESPOSTA IMEDIATA
+    // Retornamos 202 (Accepted) dizendo "Estamos trabalhando nisso"
+    res.status(202).json({ 
+      message: 'Documento recebido! A IA está processando em segundo plano.',
+      status: 'processing'
+    });
 
   } catch (error) {
-    console.error('❌ Erro Analyze:', error);
-    res.status(500).json({ message: error.message || 'Erro interno.' });
-
-  } finally {
-    // 6. LIMPEZA
-    try {
-      if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
-    } catch (e) { console.error('Erro cleanup:', e); }
+    console.error('❌ Erro ao enfileirar:', error);
+    // Limpeza de emergência
+    if (fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
+    res.status(500).json({ message: 'Erro interno ao iniciar processamento.' });
   }
 };
 
+// Histórico (Mantém igual, pois apenas lê do banco)
 const getHistory = async (req, res) => {
   try {
     const docs = await Document.find({ user: req.user._id }).sort({ createdAt: -1 });

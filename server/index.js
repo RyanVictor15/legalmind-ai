@@ -7,82 +7,89 @@ const rateLimit = require('express-rate-limit');
 const mongoSanitize = require('express-mongo-sanitize');
 const xss = require('xss-clean');
 const path = require('path');
+//const passport = require('passport');
+const Sentry = require('@sentry/node'); // 📍 SENTRY
+const { nodeProfilingIntegration } = require('@sentry/profiling-node'); // 📍 SENTRY
 
-// Rotas
+// Workers e Rotas
+require('./workers/analyzeWorker');
+const notificationRoutes = require('./routes/notificationRoutes');
 const userRoutes = require('./routes/userRoutes');
 const analyzeRoutes = require('./routes/analyzeRoutes');
 const paymentRoutes = require('./routes/paymentRoutes');
-const jurisprudenceRoutes = require('./routes/jurisprudenceRoutes'); // Se tiver esta rota
+const jurisprudenceRoutes = require('./routes/jurisprudenceRoutes');
+const authRoutes = require('./routes/authRoutes');
+const organizationRoutes = require('./routes/organizationRoutes');
 
-// Configuração
 dotenv.config();
+//require('./config/passport');
+
 const app = express();
 
-// 📍 1. SEGURANÇA: HELMET (Headers HTTP Seguros)
+// 📍 1. SENTRY: INICIALIZAÇÃO (Deve vir antes de tudo)
+Sentry.init({
+  dsn: process.env.SENTRY_DSN, // Pegar no painel do Sentry
+  integrations: [
+    new Sentry.Integrations.Http({ tracing: true }),
+    new Sentry.Integrations.Express({ app }),
+    nodeProfilingIntegration(),
+  ],
+  tracesSampleRate: 1.0, // Em produção, diminua para 0.1 ou 0.2
+  profilesSampleRate: 1.0,
+});
+
+// 📍 2. SENTRY: REQUEST HANDLER (Primeiro Middleware Real)
+app.use(Sentry.Handlers.requestHandler());
+app.use(Sentry.Handlers.tracingHandler());
+
+// Segurança e Middleware Padrão
 app.use(helmet());
 
-// 📍 2. SEGURANÇA: LIMITADOR DE REQUISIÇÕES (DDoS / Brute Force Protection)
-const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutos
-  max: 100, // Limite de 100 requisições por IP
-  message: 'Muitas requisições deste IP, por favor tente novamente em 15 minutos.'
-});
-app.use('/api', limiter);
-
-// Limitador Específico para Login (Mais estrito)
-const authLimiter = rateLimit({
-  windowMs: 60 * 60 * 1000, // 1 hora
-  max: 10, // Bloqueia após 10 tentativas falhadas
-  message: 'Muitas tentativas de login. Conta bloqueada temporariamente.'
-});
+// Limitadores (Importados da sua config)
+const { globalLimiter, authLimiter } = require('./middleware/rateLimiters');
+app.use('/api', globalLimiter);
 app.use('/api/users/login', authLimiter);
 
-// 📍 3. WEBHOOK STRIPE (Precisa do RAW body antes do parser JSON global)
-// O middleware do webhook está dentro das rotas, mas o express.raw deve vir aqui se não for tratado lá
+// Webhook Stripe
 app.use('/api/payments/webhook', express.raw({ type: 'application/json' }));
 
-// 📍 4. PARSERS E SANITIZAÇÃO
-app.use(express.json({ limit: '10mb' })); // Limite de 10mb para JSON
-app.use(cors()); // Habilita Cross-Origin Resource Sharing
-
-// Data Sanitization contra NoSQL Injection (Ex: email: {"$gt": ""})
+// Parsers Globais
+app.use(express.json({ limit: '10mb' }));
+app.use(cors());
 app.use(mongoSanitize());
-
-// Data Sanitization contra XSS (Cross-Site Scripting)
 app.use(xss());
+//app.use(passport.initialize());
 
-// 📍 5. SERVIR FICHEIROS ESTÁTICOS (Uploads - Opcional se usar S3)
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
-// 📍 6. ROTAS DA API
+// Rotas
 app.use('/api/users', userRoutes);
 app.use('/api/analyze', analyzeRoutes);
 app.use('/api/payments', paymentRoutes);
 app.use('/api/jurisprudence', jurisprudenceRoutes);
+app.use('/api/notifications', notificationRoutes);
+app.use('/api/organizations', organizationRoutes);
+//app.use('/auth', authRoutes);
 
-// Rota Base
-app.get('/', (req, res) => {
-  res.send('API LegalMind AI a funcionar com Segurança Máxima 🛡️');
-});
+app.get('/', (req, res) => res.send('API LegalMind AI Online 🛡️'));
 
-// Tratamento de Erros Global
+// 📍 3. SENTRY: ERROR HANDLER (Deve vir ANTES de qualquer outro tratador de erro)
+app.use(Sentry.Handlers.errorHandler());
+
+// Tratamento de Erro Padrão (Fallback)
 app.use((err, req, res, next) => {
+  // O Sentry já capturou o erro acima, aqui nós só respondemos ao usuário
   console.error(err.stack);
   res.status(500).json({ 
     status: 'error', 
-    message: err.message || 'Erro interno do servidor.' 
+    message: 'Erro interno do servidor. O suporte foi notificado.' 
   });
 });
 
-// 📍 7. CONEXÃO AO BANCO E SERVIDOR
 const PORT = process.env.PORT || 5000;
-
 mongoose.connect(process.env.MONGO_URI)
   .then(() => {
     console.log('✅ MongoDB Conectado');
-    app.listen(PORT, () => {
-      console.log(`🚀 Servidor a correr na porta ${PORT}`);
-      console.log(`🛡️  Modo de Segurança: ATIVADO`);
-    });
+    app.listen(PORT, () => console.log(`🚀 Servidor na porta ${PORT}`));
   })
   .catch((err) => console.log('❌ Erro MongoDB:', err));
