@@ -2,8 +2,8 @@ import axios from 'axios';
 
 // Cria a instância do Axios
 const api = axios.create({
-  baseURL: 'http://localhost:5000/api', // Em produção, isso mudará
-  timeout: 120000, // FASE 3 (Adiantado): Aumentado para 120s para suportar IA
+  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:5000/api',
+  timeout: 120000, // 120s para suportar IA
 });
 
 // INTERCEPTOR DE REQUISIÇÃO (Anexa o token automaticamente)
@@ -21,24 +21,27 @@ api.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
-// INTERCEPTOR DE RESPOSTA (FASE 2: Gerenciamento de Erros 401)
+// INTERCEPTOR DE RESPOSTA (Gerenciamento de Erros 401)
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    // Se o erro for 401 (Não autorizado / Token expirado)
     if (error.response && error.response.status === 401) {
-      console.warn("Sessão expirada. Redirecionando para login...");
-      
-      // Limpa dados locais
-      localStorage.removeItem('userInfo');
-      
-      // Redireciona para login (força bruta para garantir limpeza de estado)
-      if (window.location.pathname !== '/login') {
+      // Evita loop infinito de redirecionamento se já estiver no login
+      if (!window.location.pathname.includes('/login')) {
+        localStorage.removeItem('userInfo');
         window.location.href = '/login';
       }
     }
     return Promise.reject(error);
   }
 );
+
+// --- FUNÇÕES ESPECÍFICAS EXPORTADAS (O QUE FALTAVA) ---
+
+export const analyzeDocument = async (formData) => {
+  // O Axios detecta FormData automaticamente e configura o Content-Type correto
+  const response = await api.post('/analyze', formData);
+  return response.data;
+};
 
 export default api;
