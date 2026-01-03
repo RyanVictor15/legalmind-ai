@@ -6,7 +6,7 @@ const dotenv = require('dotenv');
 
 dotenv.config();
 
-// Configuração da Conexão Redis (IGUAL AO CONFIG/REDIS.JS)
+// Configuração do Redis
 const redisConnection = {
   host: process.env.REDIS_HOST || '127.0.0.1',
   port: process.env.REDIS_PORT || 6379,
@@ -25,29 +25,39 @@ const analyzeWorker = new Worker('analyzeQueue', async (job) => {
   console.log(`⚙️ Worker: Processando documento ${documentId}...`);
 
   try {
-    // Garante conexão com Mongo dentro do Worker
+    // 1. Garante conexão com Mongo
     if (mongoose.connection.readyState === 0) {
       await mongoose.connect(process.env.MONGO_URI);
     }
 
+    // 2. Busca o documento
     const doc = await Document.findById(documentId);
-    if (!doc) throw new Error('Documento não encontrado');
+    if (!doc) throw new Error('Documento não encontrado no Banco de Dados.');
 
-    // --- LÓGICA DA IA (GEMINI) ---
+    // 🔴 3. VERIFICAÇÃO DE SEGURANÇA (AQUI ESTAVA O ERRO)
+    // Se o doc.content for null ou undefined, definimos uma string vazia para não quebrar
+    const docContent = doc.content || "";
+
+    if (docContent.trim().length === 0) {
+      throw new Error('O documento está vazio ou é um PDF escaneado (imagem) sem texto selecionável.');
+    }
+
+    // --- LÓGICA DA IA ---
     const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
     
-    // Prompt Otimizado
     const prompt = `
-      Analise juridicamente este texto e retorne APENAS um JSON:
-      Texto: "${doc.content.substring(0, 5000)}"
+      Atue como um advogado sênior. Analise juridicamente este texto e retorne APENAS um JSON válido.
+      Não use markdown. Não use crases.
+      
+      Texto do documento: "${docContent.substring(0, 15000)}"
       
       Formato JSON exigido:
       {
         "sentiment": "Favorável" | "Desfavorável" | "Neutro",
-        "score": (número de 0 a 100),
-        "summary": "Resumo de 2 linhas",
-        "keyRisks": ["Risco 1", "Risco 2"],
-        "recommendations": ["Rec 1", "Rec 2"]
+        "score": (número de 0 a 100 indicando viabilidade),
+        "summary": "Resumo executivo de 2 linhas",
+        "keyRisks": ["Risco 1", "Risco 2 (cite artigos se houver)"],
+        "recommendations": ["Recomendação 1", "Recomendação 2"]
       }
     `;
 
@@ -55,9 +65,16 @@ const analyzeWorker = new Worker('analyzeQueue', async (job) => {
     const response = await result.response;
     const text = response.text();
 
-    // Limpeza do JSON (Remove crases ```json ... ```)
+    // Limpeza do JSON
     const jsonString = text.replace(/```json/g, '').replace(/```/g, '').trim();
-    const analysis = JSON.parse(jsonString);
+    
+    let analysis;
+    try {
+        analysis = JSON.parse(jsonString);
+    } catch (e) {
+        console.error("Erro ao fazer parse do JSON da IA:", text);
+        throw new Error("A IA não retornou um JSON válido.");
+    }
 
     // Salva no Banco
     doc.analysis = analysis;
@@ -65,21 +82,21 @@ const analyzeWorker = new Worker('analyzeQueue', async (job) => {
     doc.analyzedAt = new Date();
     await doc.save();
 
-    console.log(`✅ Worker: Documento ${documentId} concluído!`);
+    console.log(`✅ Worker: Documento ${documentId} concluído com sucesso!`);
     return analysis;
 
   } catch (error) {
-    console.error(`❌ Worker Error (Doc ${documentId}):`, error);
+    console.error(`❌ Worker Error (Doc ${documentId}):`, error.message);
     
-    // Atualiza status para erro
+    // Atualiza status para erro no banco para o frontend saber
     try {
-        await Document.findByIdAndUpdate(documentId, { status: 'error' });
-    } catch (e) { console.error('Erro ao atualizar status de falha'); }
+        await Document.findByIdAndUpdate(documentId, { status: 'failed' });
+    } catch (e) { console.error('Erro ao salvar status de falha'); }
     
     throw error;
   }
 }, { 
-  connection: redisConnection // 📍 AQUI ESTÁ A CORREÇÃO CRÍTICA
+  connection: redisConnection 
 });
 
 module.exports = analyzeWorker;

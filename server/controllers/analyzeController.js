@@ -1,84 +1,81 @@
 const Document = require('../models/Document');
 const { Queue } = require('bullmq');
-const path = require('path');
+const pdf = require('pdf-parse'); // 📍 Importamos o leitor de PDF
 const dotenv = require('dotenv');
 
 dotenv.config();
 
-// 📍 CONFIGURAÇÃO DO REDIS (Corrigida para BullMQ)
 const redisConnection = {
   host: process.env.REDIS_HOST || '127.0.0.1',
   port: process.env.REDIS_PORT || 6379,
-  maxRetriesPerRequest: null, // <--- ESSA LINHA É OBRIGATÓRIA PRO BULLMQ NÃO DAR ERRO 500
+  maxRetriesPerRequest: null,
 };
 
 if (process.env.REDIS_PASSWORD) {
   redisConnection.password = process.env.REDIS_PASSWORD;
 }
 
-// Inicializa a Fila com a conexão correta
-const analyzeQueue = new Queue('analyzeQueue', { 
-  connection: redisConnection 
-});
+const analyzeQueue = new Queue('analyzeQueue', { connection: redisConnection });
 
 const analyzeDocument = async (req, res) => {
   try {
-    // 1. Validação Básica
-    if (!req.file) {
-      return res.status(400).json({ message: 'Nenhum arquivo enviado.' });
+    if (!req.file) return res.status(400).json({ message: 'Nenhum arquivo.' });
+
+    let content = '';
+
+    // 📍 LÓGICA INTELIGENTE: Detecta se é PDF ou TXT
+    if (req.file.mimetype === 'application/pdf') {
+      try {
+        const pdfData = await pdf(req.file.buffer);
+        content = pdfData.text; // Extrai o texto limpo do PDF
+      } catch (e) {
+        console.error("Erro ao ler PDF:", e);
+        return res.status(400).json({ message: 'PDF corrompido ou inválido.' });
+      }
+    } else {
+      // Se for TXT, lê direto
+      content = req.file.buffer.toString('utf-8');
     }
 
-    // 2. Cria o registro no MongoDB (Status: Pending)
+    if (!content || content.trim().length === 0) {
+      return res.status(400).json({ message: 'O arquivo parece estar vazio ou não tem texto selecionável.' });
+    }
+
+    // Cria no Banco
     const doc = await Document.create({
-      user: req.user._id, // Pega o ID do usuário logado
+      user: req.user._id,
       filename: req.file.originalname,
-      content: req.file.buffer.toString('utf-8'), // Lê o buffer do arquivo
+      content: content, // Salva o texto extraído, não o binário
       status: 'pending',
       type: 'contract'
     });
 
-    // 3. Envia para a Fila (Redis)
+    // Envia para a Fila
     await analyzeQueue.add('analyze-job', { 
       documentId: doc._id,
       userId: req.user._id 
     });
 
-    // 4. Responde rápido para o Frontend
     res.status(201).json({ 
-      message: 'Documento recebido! A IA está processando.',
+      message: 'Recebido! Processando...',
       documentId: doc._id,
       status: 'pending'
     });
 
   } catch (error) {
-    console.error('❌ Erro no Controller de Análise:', error);
-    // Em produção, isso ajuda a ver o erro real no log do Render
-    res.status(500).json({ 
-        message: 'Erro ao processar envio do arquivo.',
-        error: error.message 
-    });
+    console.error('❌ Erro Controller:', error);
+    res.status(500).json({ message: 'Erro interno.' });
   }
 };
 
 const getAnalysisResult = async (req, res) => {
   try {
-    const { id } = req.params;
-    const doc = await Document.findById(id);
-
-    if (!doc) {
-      return res.status(404).json({ message: 'Documento não encontrado.' });
-    }
-
-    // Verifica se o documento pertence ao usuário
-    if (doc.user.toString() !== req.user._id.toString()) {
-      return res.status(403).json({ message: 'Acesso negado.' });
-    }
-
+    const doc = await Document.findById(req.params.id);
+    if (!doc) return res.status(404).json({ message: 'Não encontrado.' });
+    if (doc.user.toString() !== req.user._id.toString()) return res.status(403).json({ message: 'Sem permissão.' });
     res.json(doc);
-
   } catch (error) {
-    console.error('Erro ao buscar resultado:', error);
-    res.status(500).json({ message: 'Erro ao buscar resultado.' });
+    res.status(500).json({ message: 'Erro ao buscar.' });
   }
 };
 
