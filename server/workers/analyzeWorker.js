@@ -1,90 +1,85 @@
 const { Worker } = require('bullmq');
-const connection = require('../config/redis');
-const fs = require('fs');
-const pdfParse = require('pdf-parse');
+const mongoose = require('mongoose');
 const Document = require('../models/Document');
-const User = require('../models/User');
-const { generateLegalAnalysis } = require('../services/aiService');
-const { sendAnalysisNotification } = require('../services/emailService');
-const { createNotification } = require('../controllers/notificationController');
+const { GoogleGenerativeAI } = require('@google/generative-ai');
+const dotenv = require('dotenv');
 
-const worker = new Worker('analyze-queue', async (job) => {
-  const { filePath, originalName, userId, mimetype } = job.data;
-  console.log(`⚙️ Worker: Processando job ${job.id} para usuário ${userId}`);
+dotenv.config();
+
+// Configuração da Conexão Redis (IGUAL AO CONFIG/REDIS.JS)
+const redisConnection = {
+  host: process.env.REDIS_HOST || '127.0.0.1',
+  port: process.env.REDIS_PORT || 6379,
+  maxRetriesPerRequest: null,
+};
+
+if (process.env.REDIS_PASSWORD) {
+  redisConnection.password = process.env.REDIS_PASSWORD;
+}
+
+// Inicializa a IA
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+
+const analyzeWorker = new Worker('analyzeQueue', async (job) => {
+  const { documentId } = job.data;
+  console.log(`⚙️ Worker: Processando documento ${documentId}...`);
 
   try {
-    // 1. LER ARQUIVO (Ainda precisamos ler do disco)
-    // Nota: Em produção com Docker/K8s, idealmente usaríamos S3. 
-    // Aqui assumimos disco local compartilhado.
-    let textContent = '';
-    
-    if (mimetype === 'application/pdf') {
-       const dataBuffer = fs.readFileSync(filePath);
-       const pdfData = await pdfParse(dataBuffer);
-       textContent = pdfData.text;
-    } else {
-       textContent = fs.readFileSync(filePath, 'utf-8');
+    // Garante conexão com Mongo dentro do Worker
+    if (mongoose.connection.readyState === 0) {
+      await mongoose.connect(process.env.MONGO_URI);
     }
 
-    textContent = textContent.replace(/\n\s*\n/g, '\n');
+    const doc = await Document.findById(documentId);
+    if (!doc) throw new Error('Documento não encontrado');
 
-    // 2. IA (Pesado)
-    const analysis = await generateLegalAnalysis(textContent, originalName);
-
-    // 3. SALVAR NO BANCO
-    const newDoc = await Document.create({
-        user: userId,
-        filename: originalName,
-        originalContent: textContent.substring(0, 5000),
-        summary: analysis.summary,
-        riskScore: analysis.riskScore,
-        verdict: analysis.verdict,
-        strategicAdvice: analysis.strategicAdvice,
-        keywords: analysis.keywords
-    });
-
-    // 4. ATUALIZAR CONTAGEM DE USO (Se Free)
-    const user = await User.findById(userId);
-    if (user && !user.isPro) {
-      user.usageCount += 1;
-      await user.save();
-    }
-
-    // 5. NOTIFICAR (Sucesso)
-    // Email
-    await sendAnalysisNotification(user.email, user.firstName, originalName);
+    // --- LÓGICA DA IA (GEMINI) ---
+    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
     
-    // In-App
-    await createNotification(
-      userId,
-      'Análise Pronta',
-      `O documento "${originalName}" foi processado.`,
-      'success',
-      '/history'
-    );
+    // Prompt Otimizado
+    const prompt = `
+      Analise juridicamente este texto e retorne APENAS um JSON:
+      Texto: "${doc.content.substring(0, 5000)}"
+      
+      Formato JSON exigido:
+      {
+        "sentiment": "Favorável" | "Desfavorável" | "Neutro",
+        "score": (número de 0 a 100),
+        "summary": "Resumo de 2 linhas",
+        "keyRisks": ["Risco 1", "Risco 2"],
+        "recommendations": ["Rec 1", "Rec 2"]
+      }
+    `;
 
-    console.log(`✅ Job ${job.id} concluído.`);
-    return newDoc;
+    const result = await model.generateContent(prompt);
+    const response = await result.response;
+    const text = response.text();
+
+    // Limpeza do JSON (Remove crases ```json ... ```)
+    const jsonString = text.replace(/```json/g, '').replace(/```/g, '').trim();
+    const analysis = JSON.parse(jsonString);
+
+    // Salva no Banco
+    doc.analysis = analysis;
+    doc.status = 'completed';
+    doc.analyzedAt = new Date();
+    await doc.save();
+
+    console.log(`✅ Worker: Documento ${documentId} concluído!`);
+    return analysis;
 
   } catch (error) {
-    console.error(`❌ Job ${job.id} falhou:`, error);
+    console.error(`❌ Worker Error (Doc ${documentId}):`, error);
     
-    // Notificar erro
-    await createNotification(
-      userId,
-      'Falha na Análise',
-      `Não foi possível processar "${originalName}". Tente novamente.`,
-      'error'
-    );
+    // Atualiza status para erro
+    try {
+        await Document.findByIdAndUpdate(documentId, { status: 'error' });
+    } catch (e) { console.error('Erro ao atualizar status de falha'); }
     
     throw error;
-  } finally {
-    // Limpeza do arquivo temporário
-    try {
-      if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
-    } catch (e) { console.error('Erro cleanup worker:', e); }
   }
+}, { 
+  connection: redisConnection // 📍 AQUI ESTÁ A CORREÇÃO CRÍTICA
+});
 
-}, { connection });
-
-module.exports = worker;
+module.exports = analyzeWorker;
