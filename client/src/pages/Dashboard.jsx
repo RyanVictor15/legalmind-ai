@@ -1,199 +1,193 @@
-import React, { useState } from 'react';
-import Layout from '../components/Layout';
-import FileUpload from '../components/FileUpload';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { analyzeDocument } from '../services/api';
-import { Loader2, FileText, CheckCircle2, Zap, BrainCircuit, Clock } from 'lucide-react'; // 📍 Adicionei Clock
+import { analyzeDocument, getAnalysisResult } from '../services/api'; // 📍 Importamos a nova função
+import { FileText, UploadCloud, CheckCircle, AlertTriangle, Activity, RefreshCw } from 'lucide-react';
 import toast from 'react-hot-toast';
-import OnboardingModal from '../components/OnboardingModal';
-import { useNavigate } from 'react-router-dom'; // 📍 Para redirecionar
-import posthog from 'posthog-js';
 
 const Dashboard = () => {
-  const { user } = useAuth(); // refreshUser se necessário
-  const [analysis, setAnalysis] = useState(null);
+  const { user } = useAuth();
+  const [file, setFile] = useState(null);
   const [loading, setLoading] = useState(false);
-  const navigate = useNavigate();
+  const [analysis, setAnalysis] = useState(null);
+  const [polling, setPolling] = useState(false); // Controle do Polling
 
-  const handleAnalyze = async (file) => {
+  // --- EFEITO DE POLLING (Auto-Update) ---
+  useEffect(() => {
+    let interval;
+    if (polling && analysis?.documentId) {
+      interval = setInterval(async () => {
+        try {
+          const result = await getAnalysisResult(analysis.documentId);
+          console.log("Checando status...", result.status);
+
+          if (result.status === 'completed') {
+            setAnalysis(result); // Atualiza com o resultado final
+            setPolling(false);   // Para de perguntar
+            setLoading(false);
+            toast.success("Análise Jurídica Concluída!");
+          } else if (result.status === 'failed') {
+            setPolling(false);
+            setLoading(false);
+            toast.error("Erro ao processar o arquivo.");
+          }
+          // Se for 'pending', continua rodando...
+        } catch (error) {
+          console.error("Erro no polling:", error);
+        }
+      }, 3000); // Pergunta a cada 3 segundos
+    }
+    return () => clearInterval(interval);
+  }, [polling, analysis]);
+
+  const handleFileChange = (e) => {
+    setFile(e.target.files[0]);
+    setAnalysis(null); // Limpa análise anterior
+  };
+
+  const handleAnalyze = async () => {
+    if (!file) return toast.error('Selecione um arquivo PDF ou TXT');
+
+    const formData = new FormData();
+    formData.append('file', file);
+
     setLoading(true);
-    setAnalysis(null);
-
-    // 📍 RASTREAR EVENTO
-    posthog.capture('document_analysis_started', {
-        file_type: file.type,
-        file_size: file.size,
-        is_pro: user?.isPro
-    });
-    
-    const toastId = toast.loading('Enviando para a fila de processamento...');
-
     try {
-      const formData = new FormData();
-      formData.append('file', file); 
-
-      const response = await analyzeDocument(formData);
+      // 1. Envia o arquivo
+      const initialResponse = await analyzeDocument(formData);
       
-      // Tratamento da resposta (Pode ser direta ou objeto axios)
-      const data = response.data || response;
-
-      // 📍 LÓGICA DA FASE 3: Verifica se foi para a Fila
-      if (response.status === 202 || data.status === 'processing') {
-        toast.success('Recebido! A IA está processando.', { id: toastId });
-        
-        // Criamos um estado visual de "Processando"
-        setAnalysis({
-            processing: true,
-            summary: "Seu documento está na fila de análise da Inteligência Artificial.\n\nVocê será notificado pelo sininho e por e-mail assim que o veredito estiver pronto.",
-            verdict: "Em andamento..."
-        });
-      } else {
-        // Fallback (caso o backend responda direto algum dia)
-        setAnalysis(data);
-        toast.success('Análise concluída!', { id: toastId });
-      }
-
+      // 2. Mostra estado inicial (Pending)
+      setAnalysis(initialResponse);
+      
+      // 3. Inicia o Polling para buscar o resultado final
+      setPolling(true); 
+      toast.success('Arquivo enviado! Processando IA...');
+      
     } catch (error) {
-      console.error("Erro Dashboard:", error);
-      const msg = error.response?.data?.message || "Falha na conexão.";
-      toast.error(msg, { id: toastId });
-    } finally {
+      console.error(error);
+      toast.error('Erro ao enviar documento.');
       setLoading(false);
     }
   };
 
   return (
-    <Layout>
-      {user && !user.hasOnboarded && (
-        <OnboardingModal onComplete={() => window.location.reload()} /> 
-      )}
+    <div className="p-8 max-w-6xl mx-auto">
+      <header className="mb-10">
+        <h1 className="text-3xl font-bold text-gray-800 dark:text-white">Olá, {user?.firstName} 👋</h1>
+        <p className="text-gray-500 dark:text-gray-400">Pronto para analisar seus processos hoje?</p>
+      </header>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        
-        {/* CABEÇALHO */}
-        <div className="mb-8 flex flex-col md:flex-row md:items-end justify-between gap-4">
-          <div>
-            <h1 className="text-2xl md:text-3xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
-              Olá, {user?.firstName || 'Doutor(a)'}
-              <span className="text-2xl">👋</span>
-            </h1>
-            <p className="text-slate-500 dark:text-slate-400 mt-1">
-              Pronto para analisar seus processos hoje?
+      {/* ÁREA DE UPLOAD */}
+      <div className="grid md:grid-cols-3 gap-8">
+        <div className="md:col-span-1 bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 h-fit">
+          <h2 className="font-semibold mb-4 text-gray-700 dark:text-gray-200">Nova Análise</h2>
+          
+          <div className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-xl p-8 text-center hover:bg-gray-50 dark:hover:bg-gray-700/50 transition cursor-pointer relative">
+            <input 
+              type="file" 
+              accept=".pdf,.txt" 
+              onChange={handleFileChange}
+              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+            />
+            <UploadCloud className="w-10 h-10 text-blue-500 mx-auto mb-3" />
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              {file ? file.name : "Clique ou arraste um PDF aqui"}
             </p>
           </div>
-          
-          {!user?.isPro && (
-             <div className="bg-amber-50 dark:bg-amber-900/20 text-amber-800 dark:text-amber-200 px-4 py-2 rounded-lg text-sm font-medium border border-amber-200 dark:border-amber-800 flex items-center gap-2">
-               <Zap size={16} /> Restam {3 - (user?.usageCount || 0)} análises gratuitas
-             </div>
+
+          <button
+            onClick={handleAnalyze}
+            disabled={loading || !file}
+            className="w-full mt-4 bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-xl font-medium transition disabled:opacity-50 flex items-center justify-center gap-2"
+          >
+            {loading ? (
+              <> <RefreshCw className="animate-spin w-5 h-5" /> Processando... </>
+            ) : (
+              <> <Activity className="w-5 h-5" /> Analisar com IA </>
+            )}
+          </button>
+        </div>
+
+        {/* ÁREA DE RESULTADO */}
+        <div className="md:col-span-2">
+          {!analysis && (
+            <div className="h-full flex flex-col items-center justify-center text-gray-400 border-2 border-dashed border-gray-200 dark:border-gray-700 rounded-2xl min-h-[300px]">
+              <FileText className="w-16 h-16 mb-4 opacity-20" />
+              <p>O resultado da análise aparecerá aqui.</p>
+            </div>
+          )}
+
+          {/* ESTADO: PENDING / PROCESSANDO */}
+          {analysis && analysis.status === 'pending' && (
+            <div className="bg-blue-50 dark:bg-blue-900/20 p-8 rounded-2xl border border-blue-100 dark:border-blue-800 text-center animate-pulse">
+              <h3 className="text-xl font-bold text-blue-800 dark:text-blue-300 mb-2">A IA está lendo seu documento...</h3>
+              <p className="text-blue-600 dark:text-blue-400">Isso leva cerca de 10 a 20 segundos. Aguarde.</p>
+            </div>
+          )}
+
+          {/* ESTADO: COMPLETED (MOSTRA O JSON BONITO) */}
+          {analysis && analysis.status === 'completed' && analysis.analysis && (
+            <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden">
+              <div className="p-6 border-b border-gray-100 dark:border-gray-700 flex justify-between items-center bg-gray-50 dark:bg-gray-800">
+                <h3 className="text-xl font-bold text-gray-800 dark:text-white flex items-center gap-2">
+                  <CheckCircle className="text-green-500" /> Análise Concluída
+                </h3>
+                <span className="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-sm font-bold">
+                  Score: {analysis.analysis.score}/100
+                </span>
+              </div>
+              
+              <div className="p-6 space-y-6">
+                <div>
+                  <h4 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-2">Sentimento</h4>
+                  <div className={`inline-block px-4 py-2 rounded-lg font-bold ${
+                    analysis.analysis.sentiment === 'Favorável' ? 'bg-green-100 text-green-700' :
+                    analysis.analysis.sentiment === 'Desfavorável' ? 'bg-red-100 text-red-700' :
+                    'bg-yellow-100 text-yellow-700'
+                  }`}>
+                    {analysis.analysis.sentiment}
+                  </div>
+                </div>
+
+                <div>
+                  <h4 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-2">Resumo</h4>
+                  <p className="text-gray-700 dark:text-gray-300 leading-relaxed bg-gray-50 dark:bg-gray-700/50 p-4 rounded-xl">
+                    {analysis.analysis.summary}
+                  </p>
+                </div>
+
+                <div className="grid md:grid-cols-2 gap-6">
+                  <div>
+                    <h4 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-2 flex items-center gap-2">
+                      <AlertTriangle className="w-4 h-4 text-orange-500" /> Riscos
+                    </h4>
+                    <ul className="space-y-2">
+                      {analysis.analysis.keyRisks?.map((risk, i) => (
+                        <li key={i} className="flex items-start gap-2 text-gray-700 dark:text-gray-300 text-sm">
+                          <span className="text-orange-500 mt-1">•</span> {risk}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+
+                  <div>
+                    <h4 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-2 flex items-center gap-2">
+                      <CheckCircle className="w-4 h-4 text-blue-500" /> Recomendações
+                    </h4>
+                    <ul className="space-y-2">
+                      {analysis.analysis.recommendations?.map((rec, i) => (
+                        <li key={i} className="flex items-start gap-2 text-gray-700 dark:text-gray-300 text-sm">
+                          <span className="text-blue-500 mt-1">•</span> {rec}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+              </div>
+            </div>
           )}
         </div>
-
-        {/* GRID PRINCIPAL */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-          
-          {/* COLUNA ESQUERDA */}
-          <div className="lg:col-span-8 space-y-6">
-            
-            {/* Upload */}
-            <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-800 p-6 sm:p-8">
-               <div className="flex items-center gap-3 mb-6">
-                 <div className="p-3 bg-blue-100 dark:bg-blue-900/30 rounded-xl text-blue-600 dark:text-blue-400">
-                   <FileText size={24} />
-                 </div>
-                 <div>
-                   <h2 className="text-lg font-bold text-slate-900 dark:text-white">Nova Análise</h2>
-                   <p className="text-sm text-slate-500 dark:text-slate-400">Suporta PDF e TXT (Max 5MB)</p>
-                 </div>
-               </div>
-               <FileUpload onFileUpload={handleAnalyze} isLoading={loading} />
-            </div>
-
-            {/* Loading State */}
-            {loading && (
-              <div className="bg-white dark:bg-slate-900 rounded-2xl p-10 border border-slate-200 dark:border-slate-800 text-center animate-pulse">
-                 <div className="inline-block p-4 rounded-full bg-slate-100 dark:bg-slate-800 mb-4">
-                    <Loader2 className="animate-spin text-blue-600" size={32} />
-                 </div>
-                 <h3 className="text-lg font-medium text-slate-900 dark:text-white">Enviando para o Servidor...</h3>
-              </div>
-            )}
-
-            {/* Resultado / Status */}
-            {analysis && (
-               <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-lg border border-slate-200 dark:border-slate-800 overflow-hidden animate-in fade-in slide-in-from-bottom-4">
-                  
-                  {/* 📍 CABEÇALHO CONDICIONAL (Azul para Processando, Verde para Pronto) */}
-                  {analysis.processing ? (
-                     <div className="bg-blue-50 dark:bg-blue-900/10 border-b border-blue-100 dark:border-blue-900/30 p-4 px-6 flex items-center gap-3">
-                        <Clock className="text-blue-600 dark:text-blue-400 animate-pulse" size={24} />
-                        <h2 className="font-bold text-blue-800 dark:text-blue-400">Análise em Andamento</h2>
-                     </div>
-                  ) : (
-                     <div className="bg-green-50 dark:bg-green-900/10 border-b border-green-100 dark:border-green-900/30 p-4 px-6 flex items-center gap-3">
-                        <CheckCircle2 className="text-green-600 dark:text-green-400" size={24} />
-                        <h2 className="font-bold text-green-800 dark:text-green-400">Análise Concluída</h2>
-                     </div>
-                  )}
-                  
-                  <div className="p-6 sm:p-8 space-y-6">
-                    {/* Scores (Só mostra se NÃO estiver processando) */}
-                    {!analysis.processing && analysis.riskScore !== undefined && (
-                        <div className="grid grid-cols-2 gap-4 mb-6">
-                            <div className="p-4 bg-slate-50 dark:bg-slate-800 rounded-xl">
-                                <span className="text-xs text-slate-500 uppercase font-bold">Risco</span>
-                                <p className="text-2xl font-bold text-slate-800 dark:text-white">{analysis.riskScore}%</p>
-                            </div>
-                            <div className="p-4 bg-slate-50 dark:bg-slate-800 rounded-xl">
-                                <span className="text-xs text-slate-500 uppercase font-bold">Veredito</span>
-                                <p className="text-xl font-bold text-slate-800 dark:text-white truncate">{analysis.verdict || 'N/A'}</p>
-                            </div>
-                        </div>
-                    )}
-
-                    <div className="prose prose-slate dark:prose-invert max-w-none text-sm leading-relaxed text-slate-700 dark:text-slate-300">
-                      <h3 className="font-bold text-slate-900 dark:text-white mb-2">Status</h3>
-                      <div className="whitespace-pre-line p-4 bg-slate-50 dark:bg-slate-950 rounded-xl border border-slate-100 dark:border-slate-800">
-                        {typeof analysis.summary === 'string' ? analysis.summary : JSON.stringify(analysis, null, 2)}
-                      </div>
-                    </div>
-
-                    {/* Botão para ver histórico se estiver processando */}
-                    {analysis.processing && (
-                        <div className="flex justify-center mt-4">
-                            <button 
-                                onClick={() => navigate('/history')}
-                                className="text-blue-600 hover:underline text-sm font-medium"
-                            >
-                                Acompanhar em "Meus Casos"
-                            </button>
-                        </div>
-                    )}
-
-                  </div>
-               </div>
-            )}
-          </div>
-
-          {/* COLUNA DIREITA */}
-          <div className="lg:col-span-4 space-y-6">
-            <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-800 p-5">
-               <div className="flex items-center gap-2 mb-4">
-                 <BrainCircuit size={18} className="text-purple-500" />
-                 <h3 className="font-bold text-slate-800 dark:text-white text-sm">IA Rápida</h3>
-               </div>
-               <textarea 
-                  className="w-full h-32 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl p-3 text-slate-800 dark:text-slate-300 text-sm focus:ring-2 focus:ring-purple-500 outline-none resize-none"
-                  placeholder="Cole um texto aqui..."
-               ></textarea>
-               <button className="mt-3 w-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wide">
-                  Processar
-               </button>
-            </div>
-          </div>
-        </div>
       </div>
-    </Layout>
+    </div>
   );
 };
 
