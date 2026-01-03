@@ -1,14 +1,30 @@
 const express = require('express');
 const router = express.Router();
-const { analyzeDocument, getHistory } = require('../controllers/analyzeController');
 const { protect } = require('../middleware/authMiddleware');
-const { aiLimiter } = require('../middleware/rateLimiters'); // 📍 Importar Limitador IA
+const { aiLimiter } = require('../middleware/rateLimiters');
+const { analyzeDocument, getAnalysisResult } = require('../controllers/analyzeController');
 
-// Rota de Análise (Protegida + Limitada)
-// Ordem importa: 1. Protege (Identifica User) -> 2. Limita (Verifica Cota) -> 3. Controller
-router.post('/', protect, aiLimiter, analyzeDocument);
+// Precisamos do Multer para processar o upload do arquivo
+const multer = require('multer');
+const upload = multer({ 
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 } // 10MB limite
+});
 
-// Rota de Histórico (Apenas Protegida)
-router.get('/history', protect, getHistory);
+// 1. Rota de Upload (POST /api/analyze)
+// Usa: Proteção de Login -> Limite de IA -> Processamento do Arquivo -> Controller
+router.post('/', 
+  protect, 
+  aiLimiter, 
+  upload.single('file'), 
+  analyzeDocument
+);
+
+// 2. Rota de Resultado (GET /api/analyze/:id)
+// Usa: Proteção de Login -> Controller
+router.get('/:id', 
+  protect, 
+  getAnalysisResult
+);
 
 module.exports = router;

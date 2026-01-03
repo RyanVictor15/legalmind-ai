@@ -4,58 +4,39 @@ const User = require('../models/User');
 const protect = async (req, res, next) => {
   let token;
 
-  // Check for Bearer token in headers
-  // ...
-if (
-  req.headers.authorization &&
-  req.headers.authorization.startsWith('Bearer')
-) {
-  try {
-    // CORREÇÃO: Adicione um ESPAÇO dentro das aspas do split
-    token = req.headers.authorization.split(' ')[1]; 
-    
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-// ...
+  if (
+    req.headers.authorization &&
+    req.headers.authorization.startsWith('Bearer')
+  ) {
+    try {
+      // Pega o token do cabeçalho
+      token = req.headers.authorization.split(' ')[1];
 
-      // Get user from the token (exclude password)
+      // Decodifica
+      const decoded = jwt.verify(token, process.env.JWT_SECRET);
+
+      // Busca o usuário (sem a senha)
       req.user = await User.findById(decoded.id).select('-password');
 
       if (!req.user) {
-        return res.status(401).json({ 
-          status: 'error', 
-          message: 'Not authorized, user not found' 
-        });
+        return res.status(401).json({ message: 'Token inválido ou usuário não existe.' });
       }
 
       next();
     } catch (error) {
-      console.error(`❌ Auth Error: ${error.message}`);
-      
-      // Differentiate between expired and invalid tokens
-      const message = error.name === 'TokenExpiredError' 
-        ? 'Session expired, please login again' 
-        : 'Not authorized, token failed';
-
-      return res.status(401).json({ status: 'error', message });
+      console.error('Erro de Auth:', error.message);
+      res.status(401).json({ message: 'Não autorizado, token falhou.' });
     }
-  }
-
-  if (!token) {
-    return res.status(401).json({ 
-      status: 'error', 
-      message: 'Not authorized, no token provided' 
-    });
+  } else {
+    res.status(401).json({ message: 'Não autorizado, sem token.' });
   }
 };
 
 const admin = (req, res, next) => {
-  if (req.user && req.user.role === 'admin') {
+  if (req.user && req.user.isAdmin) {
     next();
   } else {
-    res.status(403).json({ 
-      status: 'error', 
-      message: 'Access denied: Admin privileges required' 
-    });
+    res.status(403).json({ message: 'Acesso restrito a administradores.' });
   }
 };
 
