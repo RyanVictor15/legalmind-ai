@@ -6,7 +6,6 @@ const dotenv = require('dotenv');
 
 dotenv.config();
 
-// Configuração do Redis
 const redisConnection = {
   host: process.env.REDIS_HOST || '127.0.0.1',
   port: process.env.REDIS_PORT || 6379,
@@ -17,86 +16,89 @@ if (process.env.REDIS_PASSWORD) {
   redisConnection.password = process.env.REDIS_PASSWORD;
 }
 
-// Inicializa a IA
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
 const analyzeWorker = new Worker('analyzeQueue', async (job) => {
   const { documentId } = job.data;
-  console.log(`⚙️ Worker: Processando documento ${documentId}...`);
+  console.log(`⚙️ Worker: Iniciando Doc ID: ${documentId}`);
 
   try {
-    // 1. Garante conexão com Mongo
-    if (mongoose.connection.readyState === 0) {
-      await mongoose.connect(process.env.MONGO_URI);
-    }
+    if (mongoose.connection.readyState === 0) await mongoose.connect(process.env.MONGO_URI);
 
-    // 2. Busca o documento
     const doc = await Document.findById(documentId);
-    if (!doc) throw new Error('Documento não encontrado no Banco de Dados.');
+    if (!doc) throw new Error('Documento não encontrado.');
 
-    // 🔴 3. VERIFICAÇÃO DE SEGURANÇA (AQUI ESTAVA O ERRO)
-    // Se o doc.content for null ou undefined, definimos uma string vazia para não quebrar
     const docContent = doc.content || "";
+    if (docContent.trim().length === 0) throw new Error('Documento vazio.');
 
-    if (docContent.trim().length === 0) {
-      throw new Error('O documento está vazio ou é um PDF escaneado (imagem) sem texto selecionável.');
-    }
+    console.log(`📄 Lendo conteúdo (${docContent.length} caracteres)...`);
 
-    // --- LÓGICA DA IA ---
+    // --- CHAMADA PARA A IA ---
     const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
     
     const prompt = `
-      Atue como um advogado sênior. Analise juridicamente este texto e retorne APENAS um JSON válido.
-      Não use markdown. Não use crases.
+      Você é um assistente jurídico (LegalMind).
+      Analise o texto abaixo (Petição ou Contrato) e retorne APENAS um JSON válido.
+      NÃO use blocos de código markdown (\`\`\`json). Apenas o JSON puro.
       
-      Texto do documento: "${docContent.substring(0, 15000)}"
+      TEXTO: "${docContent.substring(0, 20000).replace(/"/g, "'")}"
       
-      Formato JSON exigido:
+      FORMATO JSON:
       {
         "sentiment": "Favorável" | "Desfavorável" | "Neutro",
-        "score": (número de 0 a 100 indicando viabilidade),
-        "summary": "Resumo executivo de 2 linhas",
-        "keyRisks": ["Risco 1", "Risco 2 (cite artigos se houver)"],
+        "score": (número 0-100),
+        "summary": "Resumo curto em pt-br",
+        "keyRisks": ["Risco 1", "Risco 2"],
         "recommendations": ["Recomendação 1", "Recomendação 2"]
       }
     `;
 
     const result = await model.generateContent(prompt);
     const response = await result.response;
-    const text = response.text();
+    let text = response.text();
 
-    // Limpeza do JSON
-    const jsonString = text.replace(/```json/g, '').replace(/```/g, '').trim();
-    
-    let analysis;
-    try {
-        analysis = JSON.parse(jsonString);
-    } catch (e) {
-        console.error("Erro ao fazer parse do JSON da IA:", text);
-        throw new Error("A IA não retornou um JSON válido.");
+    console.log("🤖 IA Respondeu. Processando JSON...");
+
+    // LIMPEZA AGRESSIVA DO JSON (Para evitar travar)
+    text = text.replace(/```json/g, '').replace(/```/g, '').trim();
+    // Remove qualquer texto antes do primeiro '{' ou depois do último '}'
+    const firstBrace = text.indexOf('{');
+    const lastBrace = text.lastIndexOf('}');
+    if (firstBrace !== -1 && lastBrace !== -1) {
+      text = text.substring(firstBrace, lastBrace + 1);
     }
 
-    // Salva no Banco
+    let analysis;
+    try {
+      analysis = JSON.parse(text);
+    } catch (e) {
+      console.error("❌ Erro JSON Parse. Texto recebido:", text);
+      // Fallback em caso de erro no JSON
+      analysis = {
+        sentiment: "Neutro",
+        score: 50,
+        summary: "A IA leu o documento mas houve um erro na formatação da resposta. Tente novamente.",
+        keyRisks: ["Erro de formatação"],
+        recommendations: ["Reenviar arquivo"]
+      };
+    }
+
+    // Salva e Finaliza
     doc.analysis = analysis;
     doc.status = 'completed';
     doc.analyzedAt = new Date();
     await doc.save();
 
-    console.log(`✅ Worker: Documento ${documentId} concluído com sucesso!`);
+    console.log(`✅ SUCESSO! Doc ${documentId} finalizado.`);
     return analysis;
 
   } catch (error) {
-    console.error(`❌ Worker Error (Doc ${documentId}):`, error.message);
-    
-    // Atualiza status para erro no banco para o frontend saber
+    console.error(`❌ ERRO FATAL no Worker (Doc ${documentId}):`, error.message);
     try {
         await Document.findByIdAndUpdate(documentId, { status: 'failed' });
-    } catch (e) { console.error('Erro ao salvar status de falha'); }
-    
+    } catch (e) { }
     throw error;
   }
-}, { 
-  connection: redisConnection 
-});
+}, { connection: redisConnection });
 
 module.exports = analyzeWorker;
