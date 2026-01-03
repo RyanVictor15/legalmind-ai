@@ -5,11 +5,11 @@ const dotenv = require('dotenv');
 
 dotenv.config();
 
-// 📍 CONFIGURAÇÃO DO REDIS (CRUCIAL PARA O DEPLOY)
-// O Controller precisa disso para saber onde enviar o trabalho
+// 📍 CONFIGURAÇÃO DO REDIS (Corrigida para BullMQ)
 const redisConnection = {
   host: process.env.REDIS_HOST || '127.0.0.1',
   port: process.env.REDIS_PORT || 6379,
+  maxRetriesPerRequest: null, // <--- ESSA LINHA É OBRIGATÓRIA PRO BULLMQ NÃO DAR ERRO 500
 };
 
 if (process.env.REDIS_PASSWORD) {
@@ -30,15 +30,14 @@ const analyzeDocument = async (req, res) => {
 
     // 2. Cria o registro no MongoDB (Status: Pending)
     const doc = await Document.create({
-      user: req.user._id, // Pega o ID do usuário logado (via Auth Middleware)
+      user: req.user._id, // Pega o ID do usuário logado
       filename: req.file.originalname,
       content: req.file.buffer.toString('utf-8'), // Lê o buffer do arquivo
       status: 'pending',
-      type: 'contract' // Pode ser dinâmico depois
+      type: 'contract'
     });
 
     // 3. Envia para a Fila (Redis)
-    // O Worker vai pegar daqui
     await analyzeQueue.add('analyze-job', { 
       documentId: doc._id,
       userId: req.user._id 
@@ -53,7 +52,11 @@ const analyzeDocument = async (req, res) => {
 
   } catch (error) {
     console.error('❌ Erro no Controller de Análise:', error);
-    res.status(500).json({ message: 'Erro ao processar envio do arquivo.' });
+    // Em produção, isso ajuda a ver o erro real no log do Render
+    res.status(500).json({ 
+        message: 'Erro ao processar envio do arquivo.',
+        error: error.message 
+    });
   }
 };
 
