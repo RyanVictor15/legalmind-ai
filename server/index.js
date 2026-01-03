@@ -2,7 +2,6 @@ const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
 const dotenv = require('dotenv');
-const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const mongoSanitize = require('express-mongo-sanitize');
 const xss = require('xss-clean');
@@ -23,71 +22,63 @@ const organizationRoutes = require('./routes/organizationRoutes');
 
 dotenv.config();
 
-// Se a configuração do passport existir, carregue-a. Se não, pule (para evitar erro sem chaves)
+// Passport Config (Só carrega se tiver chaves)
 try {
   if (process.env.GOOGLE_CLIENT_ID) {
     require('./config/passport');
   }
-} catch (e) {
-  console.log('Passport config skipped');
-}
+} catch (e) { console.log('Passport config skipped'); }
 
 const app = express();
 
-// 📍 CORREÇÃO 1: CONFIAR NO PROXY DO RENDER
-// Isso garante que o Rate Limit pegue o IP real do usuário, não do Render
-app.set('trust proxy', 1);
-
-// 📍 CORREÇÃO 2: SENTRY (Sintaxe V8+)
-// Se não tiver DSN, não inicializa para não quebrar
+// 1. INICIALIZAÇÃO DO SENTRY (Versão 8+)
+// Precisa ser antes de tudo
 if (process.env.SENTRY_DSN) {
-  Sentry.init({
-    dsn: process.env.SENTRY_DSN,
-    integrations: [
-      // Sintaxe nova (substitui new Sentry.Integrations.Http)
-      Sentry.httpIntegration(),
-      Sentry.expressIntegration({ app }),
-      nodeProfilingIntegration(),
-    ],
-    tracesSampleRate: 1.0,
-    profilesSampleRate: 1.0,
-  });
-
-  // Middleware de Requisição do Sentry
-  app.use(Sentry.Handlers.requestHandler());
-  app.use(Sentry.Handlers.tracingHandler());
+  try {
+    Sentry.init({
+      dsn: process.env.SENTRY_DSN,
+      integrations: [
+        nodeProfilingIntegration(),
+      ],
+      tracesSampleRate: 1.0,
+    });
+  } catch (e) {
+    console.log("Sentry init skipped due to version mismatch");
+  }
 }
 
-// 1. LIMITADOR GLOBAL (DDoS Protection)
-// Definido inline aqui ou importado, mas precisa estar após o 'trust proxy'
+// 2. CONFIGURAÇÕES DE SEGURANÇA E PROXY
+app.set('trust proxy', 1);
+
+// Limitador Global
 const globalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, 
   max: 100,
   standardHeaders: true,
   legacyHeaders: false,
-  validate: { xForwardedForHeader: false } // Desativa a validação estrita que causou o erro
+  validate: { xForwardedForHeader: false } // Impede erro de IPv6 no Render
 });
 
-// Middlewares Globais
 app.use(globalLimiter);
 
-// Webhook Stripe (Precisa ser Raw)
+// Webhook Stripe
 app.use('/api/payments/webhook', express.raw({ type: 'application/json' }));
 
-// Parsers
+// Parsers e Segurança
 app.use(express.json({ limit: '10mb' }));
-app.use(cors()); // Em produção, configure a origin corretamente depois
+app.use(cors()); 
 app.use(mongoSanitize());
 app.use(xss());
 app.use(passport.initialize());
 
+// Arquivos Estáticos
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // Conexão DB
 const connectDB = require('./config/db');
 connectDB();
 
-// Rotas
+// 3. ROTAS
 app.use('/api/users', userRoutes);
 app.use('/api/analyze', analyzeRoutes);
 app.use('/api/payments', paymentRoutes);
@@ -98,12 +89,17 @@ app.use('/auth', authRoutes);
 
 app.get('/', (req, res) => res.send('API LegalMind AI Online 🛡️'));
 
-// 📍 SENTRY: ERROR HANDLER (Se estiver ativo)
+// 4. ERROR HANDLER DO SENTRY (Versão 8+)
 if (process.env.SENTRY_DSN) {
-  app.use(Sentry.Handlers.errorHandler());
+  try {
+    Sentry.setupExpressErrorHandler(app);
+  } catch (error) {
+    // Se falhar a função nova, ignora silenciosamente para não derrubar o server
+    console.log("Sentry error handler setup skipped");
+  }
 }
 
-// Tratamento de Erro Padrão
+// 5. ERROR HANDLER PADRÃO
 app.use((err, req, res, next) => {
   console.error(err.stack);
   res.status(500).json({ 
