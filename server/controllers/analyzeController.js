@@ -1,66 +1,82 @@
-const analyzeQueue = require('../queues/analyzeQueue');
-const User = require('../models/User');
 const Document = require('../models/Document');
-const fs = require('fs');
+const { Queue } = require('bullmq');
+const path = require('path');
+const dotenv = require('dotenv');
 
-const FREE_LIMIT = 3;
+dotenv.config();
 
-// Controlador Principal (Versão Fila/Assíncrona)
+// 📍 CONFIGURAÇÃO DO REDIS (CRUCIAL PARA O DEPLOY)
+// O Controller precisa disso para saber onde enviar o trabalho
+const redisConnection = {
+  host: process.env.REDIS_HOST || '127.0.0.1',
+  port: process.env.REDIS_PORT || 6379,
+};
+
+if (process.env.REDIS_PASSWORD) {
+  redisConnection.password = process.env.REDIS_PASSWORD;
+}
+
+// Inicializa a Fila com a conexão correta
+const analyzeQueue = new Queue('analyzeQueue', { 
+  connection: redisConnection 
+});
+
 const analyzeDocument = async (req, res) => {
-  // 1. Validação Básica
-  if (!req.file) {
-    return res.status(400).json({ message: 'Nenhum arquivo enviado.' });
-  }
-
   try {
-    // 2. Validação de Créditos (Paywall)
-    // Continuamos fazendo isso aqui para rejeitar rápido se não tiver crédito
-    const user = await User.findById(req.user._id);
-    
-    if (!user.isPro && user.usageCount >= FREE_LIMIT) {
-      // Limpa arquivo se foi rejeitado
-      if (fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
-      
-      return res.status(403).json({ 
-        message: 'Limite gratuito atingido. Faça o upgrade para continuar.',
-        isLimitReached: true 
-      });
+    // 1. Validação Básica
+    if (!req.file) {
+      return res.status(400).json({ message: 'Nenhum arquivo enviado.' });
     }
 
-    // 3. ENFILEIRAMENTO (A Mágica da Fase 3)
-    // Em vez de processar agora, jogamos para o Redis/BullMQ
-    await analyzeQueue.add('process-document', {
-      filePath: req.file.path, // Caminho do arquivo temporário
-      originalName: req.file.originalname,
-      mimetype: req.file.mimetype,
-      userId: req.user._id // Passamos o ID para o Worker saber de quem é
+    // 2. Cria o registro no MongoDB (Status: Pending)
+    const doc = await Document.create({
+      user: req.user._id, // Pega o ID do usuário logado (via Auth Middleware)
+      filename: req.file.originalname,
+      content: req.file.buffer.toString('utf-8'), // Lê o buffer do arquivo
+      status: 'pending',
+      type: 'contract' // Pode ser dinâmico depois
     });
 
-    console.log(`📥 Arquivo ${req.file.originalname} enviado para a fila.`);
+    // 3. Envia para a Fila (Redis)
+    // O Worker vai pegar daqui
+    await analyzeQueue.add('analyze-job', { 
+      documentId: doc._id,
+      userId: req.user._id 
+    });
 
-    // 4. RESPOSTA IMEDIATA
-    // Retornamos 202 (Accepted) dizendo "Estamos trabalhando nisso"
-    res.status(202).json({ 
-      message: 'Documento recebido! A IA está processando em segundo plano.',
-      status: 'processing'
+    // 4. Responde rápido para o Frontend
+    res.status(201).json({ 
+      message: 'Documento recebido! A IA está processando.',
+      documentId: doc._id,
+      status: 'pending'
     });
 
   } catch (error) {
-    console.error('❌ Erro ao enfileirar:', error);
-    // Limpeza de emergência
-    if (fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
-    res.status(500).json({ message: 'Erro interno ao iniciar processamento.' });
+    console.error('❌ Erro no Controller de Análise:', error);
+    res.status(500).json({ message: 'Erro ao processar envio do arquivo.' });
   }
 };
 
-// Histórico (Mantém igual, pois apenas lê do banco)
-const getHistory = async (req, res) => {
+const getAnalysisResult = async (req, res) => {
   try {
-    const docs = await Document.find({ user: req.user._id }).sort({ createdAt: -1 });
-    res.json(docs);
+    const { id } = req.params;
+    const doc = await Document.findById(id);
+
+    if (!doc) {
+      return res.status(404).json({ message: 'Documento não encontrado.' });
+    }
+
+    // Verifica se o documento pertence ao usuário
+    if (doc.user.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ message: 'Acesso negado.' });
+    }
+
+    res.json(doc);
+
   } catch (error) {
-    res.status(500).json({ message: 'Erro ao buscar histórico.' });
+    console.error('Erro ao buscar resultado:', error);
+    res.status(500).json({ message: 'Erro ao buscar resultado.' });
   }
 };
 
-module.exports = { analyzeDocument, getHistory };
+module.exports = { analyzeDocument, getAnalysisResult };
