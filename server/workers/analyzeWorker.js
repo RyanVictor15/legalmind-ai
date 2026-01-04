@@ -6,12 +6,11 @@ const dotenv = require('dotenv');
 
 dotenv.config();
 
-// 📍 LISTA DE PRIORIDADE (Sua versão 2.0/2.5 está aqui no topo)
+// Sua versão preferida no topo
 const MODELS_TO_TRY = [
-  "gemini-2.0-flash-exp", // <--- TENTA ESTE PRIMEIRO
-  "gemini-1.5-pro",       // Backup 1
-  "gemini-1.5-flash",     // Backup 2
-  "gemini-pro"            // Backup 3 (Legado)
+  "gemini-2.0-flash-exp", 
+  "gemini-1.5-pro",
+  "gemini-1.5-flash"
 ];
 
 const redisConnection = {
@@ -26,106 +25,97 @@ if (process.env.REDIS_PASSWORD) {
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
+// Função de Pausa (Sleep)
+const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
 const analyzeWorker = new Worker('analyzeQueue', async (job) => {
   const { documentId } = job.data;
   console.log(`⚙️ Worker: Iniciando Doc ID: ${documentId}`);
 
   try {
-    // 1. Conexão DB
     if (mongoose.connection.readyState === 0) await mongoose.connect(process.env.MONGO_URI);
 
-    // 2. Busca Documento
     const doc = await Document.findById(documentId);
     if (!doc) throw new Error('Documento não encontrado.');
 
     const docContent = doc.content || "";
     if (docContent.trim().length === 0) throw new Error('Documento vazio.');
 
-    console.log(`📄 Texto lido: ${docContent.length} caracteres. Iniciando IA...`);
+    console.log(`📄 Texto lido: ${docContent.length} caracteres.`);
 
-    // 3. LÓGICA DE TENTATIVA (Retry Logic)
     let result = null;
     let usedModel = "";
-    
-    // Loop para testar modelos até um funcionar
+
+    // Loop de Modelos
     for (const modelName of MODELS_TO_TRY) {
-      try {
-        console.log(`🔄 Tentando conectar no modelo: ${modelName}...`);
-        
-        const model = genAI.getGenerativeModel({ model: modelName });
-        
-        const prompt = `
-          Analise este texto jurídico e retorne APENAS um JSON válido.
-          Sem markdown. Sem crases.
+      // Loop de Tentativas (Retry para erro 429)
+      for (let attempt = 1; attempt <= 3; attempt++) {
+        try {
+          console.log(`🔄 Tentando modelo: ${modelName} (Tentativa ${attempt})...`);
           
-          Texto: "${docContent.substring(0, 25000).replace(/"/g, "'")}"
+          const model = genAI.getGenerativeModel({ model: modelName });
+          const prompt = `
+            Analise este texto jurídico e retorne APENAS um JSON válido.
+            Texto: "${docContent.substring(0, 25000).replace(/"/g, "'")}"
+            JSON: { "sentiment": "Neutro", "score": 0, "summary": "Resumo", "keyRisks": [], "recommendations": [] }
+          `;
+
+          const generation = await model.generateContent(prompt);
+          const response = await generation.response;
+          result = response.text();
           
-          JSON: {
-            "sentiment": "Favorável" | "Desfavorável" | "Neutro",
-            "score": (0-100),
-            "summary": "Resumo curto pt-br",
-            "keyRisks": ["Risco 1"],
-            "recommendations": ["Rec 1"]
+          usedModel = modelName;
+          console.log(`✅ CONECTADO! Modelo: ${modelName}`);
+          break; // Sai do loop de tentativas
+
+        } catch (error) {
+          // SE FOR ERRO DE COTA (429) -> ESPERA E TENTA DE NOVO
+          if (error.message.includes('429') || error.message.includes('Quota') || error.message.includes('Too Many Requests')) {
+            console.warn(`⏳ Cota excedida no ${modelName}. Esperando 60 segundos...`);
+            await sleep(60000); // Dorme 60s
+            continue; // Tenta de novo
           }
-        `;
-
-        const generation = await model.generateContent(prompt);
-        const response = await generation.response;
-        result = response.text();
-        
-        // Se não deu erro, define o modelo usado e sai do loop
-        usedModel = modelName;
-        console.log(`✅ SUCESSO! Conectado via ${modelName}`);
-        break; 
-
-      } catch (error) {
-        // Se der erro 404 ou outro, avisa e tenta o próximo
-        console.warn(`⚠️ Falha no modelo ${modelName}: ${error.message}`);
-        // NÃO dá throw aqui, para o loop continuar
+          
+          // Se for erro 404 (Não existe), pula para o próximo modelo
+          console.warn(`⚠️ Erro no modelo ${modelName}: ${error.message}`);
+          break; // Sai do loop de tentativas e vai pro próximo modelo
+        }
       }
+      if (result) break; // Se conseguiu resultado, sai do loop de modelos
     }
 
-    // Se saiu do loop e result continua null, todos falharam
-    if (!result) {
-      throw new Error(`Todos os modelos de IA falharam. Verifique sua API Key.`);
-    }
+    if (!result) throw new Error("Falha em todos os modelos após tentativas.");
 
-    // 4. Processamento da Resposta
-    console.log("🤖 Processando resposta JSON...");
+    // Processa JSON
+    console.log("🤖 Processando JSON...");
     let text = result.replace(/```json/g, '').replace(/```/g, '').trim();
-    
-    // Extrai apenas o objeto JSON (caso a IA fale antes ou depois)
     const firstBrace = text.indexOf('{');
     const lastBrace = text.lastIndexOf('}');
-    if (firstBrace !== -1 && lastBrace !== -1) {
-      text = text.substring(firstBrace, lastBrace + 1);
-    }
+    if (firstBrace !== -1 && lastBrace !== -1) text = text.substring(firstBrace, lastBrace + 1);
 
     let analysis;
     try {
       analysis = JSON.parse(text);
     } catch (e) {
-      console.error("❌ Erro Parse JSON:", text);
       analysis = {
         sentiment: "Neutro",
         score: 50,
-        summary: `Análise realizada via ${usedModel}, mas houve erro na formatação do JSON.`,
-        keyRisks: ["Erro técnico"],
+        summary: "Erro na formatação da resposta da IA.",
+        keyRisks: ["Erro Técnico"],
         recommendations: ["Tente novamente"]
       };
     }
 
-    // 5. Salva e Finaliza
     doc.analysis = analysis;
     doc.status = 'completed';
     doc.analyzedAt = new Date();
     await doc.save();
 
-    console.log(`✅ WORKER FINALIZADO COM SUCESSO!`);
+    console.log(`✅ SUCESSO FINAL!`);
     return analysis;
 
   } catch (error) {
-    console.error(`❌ ERRO FATAL no Worker:`, error.message);
+    console.error(`❌ ERRO FATAL:`, error.message);
     try { await Document.findByIdAndUpdate(documentId, { status: 'failed' }); } catch (e) { }
     throw error;
   }
