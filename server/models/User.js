@@ -2,7 +2,7 @@ const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 
 const userSchema = new mongoose.Schema({
-
+  // --- SEUS CAMPOS ORIGINAIS (MANTIDOS) ---
   organization: { 
     type: mongoose.Schema.Types.ObjectId, 
     ref: 'Organization' 
@@ -33,24 +33,21 @@ const userSchema = new mongoose.Schema({
   // Admin & Billing
   isAdmin: { type: Boolean, default: false },
   isPro: { type: Boolean, default: false },
-  
-  // MANTIDO: Seu contador de uso histórico
   usageCount: { type: Number, default: 0 }, 
-
-  // 📍 NOVO: O SALDO DE CRÉDITOS PARA O LIMITE MENSAL
-  credits: { 
-    type: Number, 
-    default: 5 // Começa com 5 para o plano gratuito
-  },
-
   stripeCustomerId: { type: String },
   subscriptionId: { type: String },
   subscriptionStatus: { type: String, default: 'free' },
   
+  // --- 📍 NOVO CAMPO (SISTEMA DE CRÉDITOS) ---
+  credits: { 
+    type: Number, 
+    default: 5 
+  },
+  
   createdAt: { type: Date, default: Date.now }
 });
 
-// MANTIDO: Sua lógica original de hash (com Salt)
+// Mantida sua lógica de hash de senha original
 userSchema.pre('save', async function(next) {
   if (!this.isModified('password')) return next();
   const salt = await bcrypt.genSalt(10);

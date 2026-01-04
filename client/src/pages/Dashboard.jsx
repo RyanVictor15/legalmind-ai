@@ -2,26 +2,28 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { analyzeDocument, getAnalysisResult } from '../services/api';
+import { useNavigate } from 'react-router-dom'; // 📍 Importação para Navegação
 import { 
   FileText, UploadCloud, CheckCircle, AlertTriangle, Activity, 
   RefreshCw, LayoutDashboard, Briefcase, Gavel, CreditCard, 
-  LogOut, Sun, Moon, User as UserIcon, Menu, X, Zap, Lock
+  LogOut, Sun, Moon, Zap, Lock, Menu, X
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 const Dashboard = () => {
-  const { user, logout } = useAuth();
+  const { user, setUser, logout } = useAuth();
   const { theme, toggleTheme } = useTheme();
+  const navigate = useNavigate();
   
-  // Estados
   const [file, setFile] = useState(null);
   const [loading, setLoading] = useState(false);
   const [analysis, setAnalysis] = useState(null);
   const [polling, setPolling] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   
-  // CRÉDITOS (Começa com o valor do usuário ou 5)
-  const [credits, setCredits] = useState(user?.credits || 5);
+  // Lógica: Se for PRO, ignora o número de créditos
+  const credits = user?.credits !== undefined ? user.credits : 5;
+  const isPro = user?.isPro || false;
 
   const handleFileChange = (e) => {
     if (e.target.files && e.target.files[0]) {
@@ -31,7 +33,6 @@ const Dashboard = () => {
     }
   };
 
-  // Atualização Automática do Resultado
   useEffect(() => {
     let interval;
     if (polling && analysis?.documentId) {
@@ -56,8 +57,9 @@ const Dashboard = () => {
   }, [polling, analysis?.documentId]);
 
   const handleAnalyze = async () => {
-    if (credits <= 0) {
-      return toast.error("Seus créditos acabaram! Aguarde o próximo mês.", { icon: '🚫' });
+    // Bloqueia apenas se não for PRO e não tiver créditos
+    if (!isPro && credits <= 0) {
+      return toast.error("Limite atingido. Faça upgrade!", { icon: '🚫' });
     }
     if (!file) return toast.error('Selecione um arquivo.');
     
@@ -69,17 +71,14 @@ const Dashboard = () => {
     try {
       const res = await analyzeDocument(formData);
       
-      // ATUALIZA O CONTADOR COM O VALOR QUE O SERVIDOR DEVOLVEU
+      // Atualiza créditos visualmente
       if (res.remainingCredits !== undefined) {
-        setCredits(res.remainingCredits);
-      } else {
-        // Fallback visual se o servidor não mandar
-        setCredits(prev => prev - 1);
+        setUser({ ...user, credits: res.remainingCredits });
       }
 
       setAnalysis(res);
       setPolling(true);
-      toast.success('Arquivo enviado! Descontamos 1 crédito.');
+      toast.success('Arquivo enviado!');
     } catch (error) {
       setLoading(false);
       const msg = error.response?.data?.message || "Erro ao conectar.";
@@ -87,9 +86,14 @@ const Dashboard = () => {
     }
   };
 
-  // Funções de Navegação (Placeholder Funcional)
+  // 📍 NAVEGAÇÃO CONSERTADA: Aponta para as rotas que você já tem
   const navigateTo = (page) => {
-    toast(`Abrindo módulo: ${page}... (Em breve)`, { icon: '🚧' });
+    switch(page) {
+      case 'Meus Casos': navigate('/history'); break;
+      case 'Jurisprudência': navigate('/jurisprudence'); break;
+      case 'Assinatura': navigate('/billing'); break;
+      default: navigate('/dashboard'); break;
+    }
   };
 
   return (
@@ -108,15 +112,15 @@ const Dashboard = () => {
         </div>
 
         <nav className="flex-1 px-4 space-y-2 mt-2">
-          {/* CARTÃO DE CRÉDITOS FUNCIONAL */}
+          {/* PAINEL DE CRÉDITOS INTELIGENTE */}
           {sidebarOpen && (
-            <div className={`mb-6 mx-2 rounded-2xl p-5 text-white shadow-lg transition-all ${credits > 0 ? 'bg-gradient-to-r from-blue-600 to-blue-500 shadow-blue-500/20' : 'bg-gray-700'}`}>
+            <div className={`mb-6 mx-2 rounded-2xl p-5 text-white shadow-lg transition-all ${isPro ? 'bg-gradient-to-r from-amber-500 to-amber-600 shadow-amber-500/20' : (credits > 0 ? 'bg-gradient-to-r from-blue-600 to-blue-500 shadow-blue-500/20' : 'bg-gray-700')}`}>
               <div className="flex justify-between items-start mb-2">
-                <span className="text-xs font-bold uppercase opacity-80">{credits > 0 ? 'Plano Ativo' : 'Limite Atingido'}</span>
-                {credits > 0 ? <Zap size={16} className="text-yellow-300 fill-yellow-300" /> : <Lock size={16} className="text-gray-400" />}
+                <span className="text-xs font-bold uppercase opacity-80">{isPro ? 'Plano PRO' : 'Plano Gratuito'}</span>
+                {isPro ? <Zap size={16} className="text-white" /> : <Lock size={16} className="text-white/70" />}
               </div>
-              <p className="text-3xl font-black">{credits}</p>
-              <p className="text-sm opacity-90">análises restantes</p>
+              <p className="text-3xl font-black">{isPro ? '∞' : credits}</p>
+              <p className="text-sm opacity-90">{isPro ? 'Análises ilimitadas' : 'análises restantes'}</p>
             </div>
           )}
 
@@ -128,6 +132,9 @@ const Dashboard = () => {
           </button>
           <button onClick={() => navigateTo('Jurisprudência')} className="flex items-center gap-4 w-full p-3.5 rounded-xl text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition group">
             <Gavel size={22} className="group-hover:text-blue-500"/> {sidebarOpen && "Jurisprudência"}
+          </button>
+          <button onClick={() => navigateTo('Assinatura')} className="flex items-center gap-4 w-full p-3.5 rounded-xl text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition group">
+            <CreditCard size={22} className="group-hover:text-blue-500"/> {sidebarOpen && "Assinatura"}
           </button>
         </nav>
 
@@ -149,7 +156,7 @@ const Dashboard = () => {
           <div>
             <h1 className="text-2xl font-bold text-gray-800 dark:text-white">Olá, {user?.firstName} 👋</h1>
             <p className="text-sm text-gray-500 dark:text-gray-400">
-              {credits > 0 ? 'Vamos acelerar seus processos hoje?' : 'Renove seus créditos para continuar.'}
+              {isPro ? 'Membro PRO: Acesso total liberado.' : (credits > 0 ? 'Vamos acelerar seus processos hoje?' : 'Renove seus créditos para continuar.')}
             </p>
           </div>
           <div className="w-12 h-12 bg-gray-100 dark:bg-gray-800 rounded-full flex items-center justify-center text-gray-600 dark:text-gray-300 font-bold border border-gray-200 dark:border-gray-700 shadow-sm">
@@ -158,7 +165,7 @@ const Dashboard = () => {
         </header>
 
         {/* CONTEÚDO */}
-        <main className="flex-1 overflow-y-auto p-8 bg-gray-50 dark:bg-gray-950">
+        <main className="flex-1 overflow-y-auto p-8 bg-gray-50 dark:bg-gray-900">
           <div className="max-w-6xl mx-auto grid lg:grid-cols-12 gap-8">
             
             {/* UPLOAD */}
@@ -166,25 +173,25 @@ const Dashboard = () => {
               <h3 className="text-lg font-bold mb-6 dark:text-white">Nova Análise</h3>
               
               <div className="border-2 border-dashed border-gray-200 dark:border-gray-700 rounded-2xl p-8 text-center hover:border-blue-500 transition relative bg-gray-50/50 dark:bg-gray-800/50 group cursor-pointer min-h-[200px] flex flex-col justify-center items-center">
-                <input type="file" accept=".pdf,.txt" onChange={handleFileChange} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" disabled={credits <= 0} />
-                <UploadCloud className={`w-14 h-14 mb-4 transition ${credits > 0 ? 'text-blue-500 group-hover:scale-110' : 'text-gray-400'}`} />
+                <input type="file" accept=".pdf,.txt" onChange={handleFileChange} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" disabled={!isPro && credits <= 0} />
+                <UploadCloud className={`w-14 h-14 mb-4 transition ${isPro || credits > 0 ? 'text-blue-500 group-hover:scale-110' : 'text-gray-400'}`} />
                 <p className="text-sm font-bold text-gray-700 dark:text-gray-300">
-                  {file ? file.name : (credits > 0 ? "Clique ou arraste PDF" : "Créditos Esgotados")}
+                  {file ? file.name : (!isPro && credits <= 0 ? "Limite Atingido" : "Clique ou arraste PDF")}
                 </p>
-                {credits > 0 && <p className="text-xs text-gray-400 mt-2">Suporta PDF e TXT</p>}
+                {(isPro || credits > 0) && <p className="text-xs text-gray-400 mt-2">Suporta PDF e TXT</p>}
               </div>
 
               <button 
                 onClick={handleAnalyze} 
-                disabled={loading || !file || credits <= 0} 
+                disabled={loading || !file || (!isPro && credits <= 0)} 
                 className={`w-full mt-6 py-4 rounded-2xl font-bold transition flex items-center justify-center gap-3 shadow-lg 
-                  ${credits > 0 
+                  ${(isPro || credits > 0) 
                     ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-blue-500/20' 
                     : 'bg-gray-200 text-gray-400 cursor-not-allowed shadow-none'}`}
               >
                 {loading || polling 
                   ? <><RefreshCw className="animate-spin" /> Processando...</> 
-                  : credits > 0 
+                  : (isPro || credits > 0) 
                     ? <><Activity size={18} /> Analisar com IA</> 
                     : <><Lock size={18} /> Limite Atingido</>
                 }
