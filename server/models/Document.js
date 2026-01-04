@@ -1,39 +1,39 @@
 const mongoose = require('mongoose');
 
 const documentSchema = new mongoose.Schema({
-  user: { 
-    type: mongoose.Schema.Types.ObjectId, 
-    ref: 'User', 
-    required: true 
+  user: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    required: true
   },
-  filename: { 
-    type: String, 
-    required: true 
-  },
-  originalContent: {
+  filename: {
     type: String,
-    select: false // Otimização: Não traz o texto gigante nas listagens por padrão
+    required: true
   },
-  
-  // Campos da IA
-  summary: String,
-  riskScore: Number, // 0 a 100
-  verdict: String,
-  strategicAdvice: String,
-  keywords: {
-    positive: [String],
-    negative: [String]
+  // 📍 AQUI ESTAVA O POSSÍVEL ERRO: Este campo PRECISA existir
+  content: {
+    type: String,
+    required: true 
   },
-
-  createdAt: { 
-    type: Date, 
-    default: Date.now 
+  status: {
+    type: String,
+    enum: ['pending', 'completed', 'failed', 'error'],
+    default: 'pending'
+  },
+  analysis: {
+    type: Object // Onde guardamos o JSON da IA
+  },
+  type: {
+    type: String,
+    default: 'contract'
+  },
+  createdAt: {
+    type: Date,
+    default: Date.now
+  },
+  analyzedAt: {
+    type: Date
   }
 });
-
-// 📍 FASE 3: INDEXAÇÃO DE PERFORMANCE
-// Índice Composto: Otimiza a busca de "Histórico do Usuário X ordenado por Data"
-// Isso transforma uma busca de O(n) para O(log n) -> Extremamente rápido.
-documentSchema.index({ user: 1, createdAt: -1 });
 
 module.exports = mongoose.model('Document', documentSchema);
