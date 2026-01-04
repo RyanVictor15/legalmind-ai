@@ -6,14 +6,12 @@ const dotenv = require('dotenv');
 
 dotenv.config();
 
-// --- LISTA DE MODELOS PARA TESTAR (DA MAIS NOVA PARA A ANTIGA) ---
-// O código vai tentar uma por uma até funcionar.
+// 📍 LISTA DE PRIORIDADE (Sua versão 2.0/2.5 está aqui no topo)
 const MODELS_TO_TRY = [
-  "gemini-2.0-flash-exp", // Provavelmente a que funcionou pra você (Experimental V2)
-  "gemini-1.5-pro",
-  "gemini-1.5-flash",
-  "gemini-1.0-pro",
-  "gemini-pro"
+  "gemini-2.0-flash-exp", // <--- TENTA ESTE PRIMEIRO
+  "gemini-1.5-pro",       // Backup 1
+  "gemini-1.5-flash",     // Backup 2
+  "gemini-pro"            // Backup 3 (Legado)
 ];
 
 const redisConnection = {
@@ -33,34 +31,39 @@ const analyzeWorker = new Worker('analyzeQueue', async (job) => {
   console.log(`⚙️ Worker: Iniciando Doc ID: ${documentId}`);
 
   try {
+    // 1. Conexão DB
     if (mongoose.connection.readyState === 0) await mongoose.connect(process.env.MONGO_URI);
 
+    // 2. Busca Documento
     const doc = await Document.findById(documentId);
     if (!doc) throw new Error('Documento não encontrado.');
 
     const docContent = doc.content || "";
     if (docContent.trim().length === 0) throw new Error('Documento vazio.');
 
-    console.log(`📄 Texto lido: ${docContent.length} caracteres.`);
+    console.log(`📄 Texto lido: ${docContent.length} caracteres. Iniciando IA...`);
 
-    // --- LÓGICA DE AUTO-DISCOVERY (Tenta conectar em loop) ---
+    // 3. LÓGICA DE TENTATIVA (Retry Logic)
     let result = null;
     let usedModel = "";
-    let lastError = null;
-
+    
+    // Loop para testar modelos até um funcionar
     for (const modelName of MODELS_TO_TRY) {
       try {
-        console.log(`🔄 Tentando modelo: ${modelName}...`);
+        console.log(`🔄 Tentando conectar no modelo: ${modelName}...`);
+        
         const model = genAI.getGenerativeModel({ model: modelName });
         
         const prompt = `
-          Retorne APENAS um JSON válido (sem markdown) analisando este texto jurídico:
-          "${docContent.substring(0, 25000).replace(/"/g, "'")}"
+          Analise este texto jurídico e retorne APENAS um JSON válido.
+          Sem markdown. Sem crases.
+          
+          Texto: "${docContent.substring(0, 25000).replace(/"/g, "'")}"
           
           JSON: {
             "sentiment": "Favorável" | "Desfavorável" | "Neutro",
             "score": (0-100),
-            "summary": "Resumo pt-br",
+            "summary": "Resumo curto pt-br",
             "keyRisks": ["Risco 1"],
             "recommendations": ["Rec 1"]
           }
@@ -70,25 +73,28 @@ const analyzeWorker = new Worker('analyzeQueue', async (job) => {
         const response = await generation.response;
         result = response.text();
         
-        // Se chegou aqui, funcionou!
+        // Se não deu erro, define o modelo usado e sai do loop
         usedModel = modelName;
-        console.log(`✅ CONECTADO COM SUCESSO NO MODELO: ${modelName}`);
-        break; // Sai do loop
+        console.log(`✅ SUCESSO! Conectado via ${modelName}`);
+        break; 
 
       } catch (error) {
+        // Se der erro 404 ou outro, avisa e tenta o próximo
         console.warn(`⚠️ Falha no modelo ${modelName}: ${error.message}`);
-        lastError = error;
-        // Continua para o próximo modelo da lista...
+        // NÃO dá throw aqui, para o loop continuar
       }
     }
 
+    // Se saiu do loop e result continua null, todos falharam
     if (!result) {
-      throw new Error(`Todos os modelos falharam. Último erro: ${lastError?.message}`);
+      throw new Error(`Todos os modelos de IA falharam. Verifique sua API Key.`);
     }
 
-    // --- PROCESSAMENTO DO JSON ---
-    console.log("🤖 Processando resposta...");
+    // 4. Processamento da Resposta
+    console.log("🤖 Processando resposta JSON...");
     let text = result.replace(/```json/g, '').replace(/```/g, '').trim();
+    
+    // Extrai apenas o objeto JSON (caso a IA fale antes ou depois)
     const firstBrace = text.indexOf('{');
     const lastBrace = text.lastIndexOf('}');
     if (firstBrace !== -1 && lastBrace !== -1) {
@@ -103,18 +109,19 @@ const analyzeWorker = new Worker('analyzeQueue', async (job) => {
       analysis = {
         sentiment: "Neutro",
         score: 50,
-        summary: `Análise feita pelo modelo ${usedModel}, mas o formato JSON quebrou.`,
-        keyRisks: ["Erro técnico de formatação"],
+        summary: `Análise realizada via ${usedModel}, mas houve erro na formatação do JSON.`,
+        keyRisks: ["Erro técnico"],
         recommendations: ["Tente novamente"]
       };
     }
 
+    // 5. Salva e Finaliza
     doc.analysis = analysis;
     doc.status = 'completed';
     doc.analyzedAt = new Date();
     await doc.save();
 
-    console.log(`✅ SUCESSO! Doc finalizado.`);
+    console.log(`✅ WORKER FINALIZADO COM SUCESSO!`);
     return analysis;
 
   } catch (error) {
