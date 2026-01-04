@@ -6,7 +6,7 @@ const dotenv = require('dotenv');
 
 dotenv.config();
 
-// 🎯 A ÚNICA VERSÃO QUE FUNCIONA
+// 🎯 VERSÃO QUE FUNCIONA
 const TARGET_MODEL = "gemini-2.5-flash";
 
 const redisConnection = {
@@ -21,12 +21,11 @@ if (process.env.REDIS_PASSWORD) {
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
-// Função de Pausa (Sleep)
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
 const analyzeWorker = new Worker('analyzeQueue', async (job) => {
   const { documentId } = job.data;
-  console.log(`⚙️ Worker: Iniciando Doc ID: ${documentId} com modelo ${TARGET_MODEL}`);
+  console.log(`⚙️ Worker: Iniciando Doc ID: ${documentId}`);
 
   try {
     if (mongoose.connection.readyState === 0) await mongoose.connect(process.env.MONGO_URI);
@@ -39,27 +38,34 @@ const analyzeWorker = new Worker('analyzeQueue', async (job) => {
 
     let result = null;
     let attempts = 0;
-    const maxAttempts = 3; // Tenta até 3 vezes se a cota estiver cheia
+    const maxAttempts = 3;
 
-    // --- LOOP DE TENTATIVA ÚNICA (Apenas para garantir que não falhe por cota) ---
     while (attempts < maxAttempts) {
       attempts++;
       try {
-        console.log(`🔄 Conectando ao Google Gemini (Tentativa ${attempts})...`);
+        console.log(`🔄 Conectando ao Gemini 2.5 (Tentativa ${attempts})...`);
         
         const model = genAI.getGenerativeModel({ model: TARGET_MODEL });
         
+        // --- AQUI ESTÁ A MUDANÇA DO PROMPT ---
         const prompt = `
-          Analise este documento jurídico e retorne um JSON válido.
-          Documento: "${docContent.substring(0, 25000).replace(/"/g, "'")}"
+          Atue como um Juiz Sênior Especialista.
+          Analise o texto jurídico abaixo e retorne um JSON.
           
-          Formato JSON Obrigatório:
+          Texto: "${docContent.substring(0, 25000).replace(/"/g, "'")}"
+          
+          REGRAS CRITICAS:
+          1. "score": DEVE ser um número de 0 a 100 (Chance de Êxito).
+          2. JAMAIS use valores monetários (como 20000) no score.
+          3. Se for uma causa ganha, dê entre 80-95. Se for difícil, 20-40.
+          
+          FORMATO JSON:
           { 
             "sentiment": "Favorável" | "Desfavorável" | "Neutro", 
             "score": 0, 
-            "summary": "Resumo executivo", 
-            "keyRisks": ["Risco 1"], 
-            "recommendations": ["Recomendação 1"] 
+            "summary": "Resumo executivo do caso", 
+            "keyRisks": ["Risco 1", "Risco 2"], 
+            "recommendations": ["Recomendação 1", "Recomendação 2"] 
           }
         `;
 
@@ -67,26 +73,22 @@ const analyzeWorker = new Worker('analyzeQueue', async (job) => {
         const response = await generation.response;
         result = response.text();
         
-        console.log(`✅ CONEXÃO BEM SUCEDIDA COM ${TARGET_MODEL}!`);
-        break; // Sai do loop pois funcionou
+        console.log(`✅ Conexão bem sucedida!`);
+        break;
 
       } catch (error) {
-        // Se for erro de Cota (429), espera um pouco e tenta de novo
         if (error.message.includes('429') || error.message.includes('Quota')) {
-          console.warn(`⏳ Cota cheia no Google. Esperando 60 segundos...`);
+          console.warn(`⏳ Cota cheia. Esperando 60s...`);
           await sleep(60000); 
           continue; 
         }
-        
-        // Se for outro erro, lança direto
         throw error;
       }
     }
 
-    if (!result) throw new Error("Não foi possível obter resposta da IA.");
+    if (!result) throw new Error("Sem resposta da IA.");
 
-    // Processamento do JSON
-    console.log("🤖 Formatando resposta...");
+    console.log("🤖 Formatando JSON...");
     let text = result.replace(/```json/g, '').replace(/```/g, '').trim();
     const firstBrace = text.indexOf('{');
     const lastBrace = text.lastIndexOf('}');
@@ -99,7 +101,7 @@ const analyzeWorker = new Worker('analyzeQueue', async (job) => {
       analysis = {
         sentiment: "Neutro",
         score: 50,
-        summary: "Erro ao formatar o JSON da resposta.",
+        summary: "Erro técnico na formatação.",
         keyRisks: ["Erro Técnico"],
         recommendations: ["Tente novamente"]
       };
@@ -110,7 +112,7 @@ const analyzeWorker = new Worker('analyzeQueue', async (job) => {
     doc.analyzedAt = new Date();
     await doc.save();
 
-    console.log(`✅ ANÁLISE CONCLUÍDA E SALVA!`);
+    console.log(`✅ ANÁLISE SALVA COM SCORE CORRIGIDO!`);
     return analysis;
 
   } catch (error) {

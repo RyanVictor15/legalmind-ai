@@ -1,4 +1,5 @@
 const Document = require('../models/Document');
+const User = require('../models/User'); // Importamos o User para mexer nos créditos
 const { Queue } = require('bullmq');
 const pdf = require('pdf-parse');
 const dotenv = require('dotenv');
@@ -10,79 +11,60 @@ const redisConnection = {
   port: process.env.REDIS_PORT || 6379,
   maxRetriesPerRequest: null,
 };
-
-if (process.env.REDIS_PASSWORD) {
-  redisConnection.password = process.env.REDIS_PASSWORD;
-}
+if (process.env.REDIS_PASSWORD) redisConnection.password = process.env.REDIS_PASSWORD;
 
 const analyzeQueue = new Queue('analyzeQueue', { connection: redisConnection });
 
 const analyzeDocument = async (req, res) => {
   try {
-    console.log("📥 Recebendo arquivo..."); // Log 1
-
-    if (!req.file) {
-      console.log("❌ Nenhum arquivo no request.");
-      return res.status(400).json({ message: 'Nenhum arquivo enviado.' });
+    // 1. VERIFICAÇÃO DE SALDO (A Lógica Real)
+    const user = await User.findById(req.user._id);
+    
+    if (user.credits <= 0) {
+      return res.status(403).json({ 
+        message: 'Seu limite mensal de análises acabou. Volte mês que vem ou faça o upgrade.' 
+      });
     }
 
-    console.log(`📂 Arquivo: ${req.file.originalname} | Tipo: ${req.file.mimetype} | Tamanho: ${req.file.size}`);
-
+    // 2. Processamento do Arquivo (Igual antes)
+    if (!req.file) return res.status(400).json({ message: 'Nenhum arquivo.' });
+    
     let content = '';
-
-    // Lógica de Extração
     if (req.file.mimetype === 'application/pdf') {
       try {
         const pdfData = await pdf(req.file.buffer);
         content = pdfData.text;
-      } catch (e) {
-        console.error("❌ Erro ao ler PDF:", e);
-        return res.status(400).json({ message: 'Erro ao ler o PDF.' });
-      }
+      } catch (e) { return res.status(400).json({ message: 'Erro ao ler PDF.' }); }
     } else {
-      // Assume que é texto (TXT, MD, etc)
       content = req.file.buffer.toString('utf-8');
     }
 
-    // Limpeza básica
-    content = content.trim();
+    if (!content || content.trim().length === 0) return res.status(400).json({ message: 'Arquivo vazio.' });
 
-    // LOG CRUCIAL: Mostra o que foi lido
-    console.log(`📝 Texto extraído (primeiros 50 chars): "${content.substring(0, 50)}..."`);
-    console.log(`📏 Tamanho total do texto: ${content.length} caracteres`);
+    // 3. DESCONTA O CRÉDITO
+    user.credits = user.credits - 1;
+    await user.save();
 
-    if (content.length === 0) {
-      console.log("❌ Texto vazio após extração.");
-      return res.status(400).json({ message: 'O arquivo está vazio.' });
-    }
-
-    // Salva no Banco
+    // 4. Salva Documento
     const doc = await Document.create({
       user: req.user._id,
       filename: req.file.originalname,
-      content: content, // <--- Aqui o texto vai para o banco
-      status: 'pending',
-      type: 'contract'
-    });
-
-    console.log(`💾 Documento salvo no Mongo. ID: ${doc._id}`);
-
-    // Envia para Fila
-    await analyzeQueue.add('analyze-job', { 
-      documentId: doc._id,
-      userId: req.user._id 
-    });
-
-    console.log(`🚀 Enviado para a fila BullMQ.`);
-
-    res.status(201).json({ 
-      message: 'Processando...',
-      documentId: doc._id,
+      content: content,
       status: 'pending'
     });
 
+    await analyzeQueue.add('analyze-job', { documentId: doc._id });
+
+    // 5. Retorna o novo saldo para o Frontend atualizar a tela
+    res.status(201).json({ 
+      message: 'Processando...',
+      documentId: doc._id,
+      status: 'pending',
+      remainingCredits: user.credits // <--- Envia o saldo novo
+    });
+
   } catch (error) {
-    console.error('❌ ERRO GERAL NO CONTROLLER:', error);
+    console.error(error);
     res.status(500).json({ message: 'Erro interno.' });
   }
 };
@@ -91,16 +73,17 @@ const getAnalysisResult = async (req, res) => {
   try {
     const doc = await Document.findById(req.params.id);
     if (!doc) return res.status(404).json({ message: 'Não encontrado.' });
-    
-    // Verifica permissão
-    if (doc.user.toString() !== req.user._id.toString()) {
-      return res.status(403).json({ message: 'Acesso negado.' });
-    }
-
+    if (doc.user.toString() !== req.user._id.toString()) return res.status(403).json({ message: 'Sem permissão.' });
     res.json(doc);
   } catch (error) {
-    res.status(500).json({ message: 'Erro ao buscar resultado.' });
+    res.status(500).json({ message: 'Erro ao buscar.' });
   }
 };
 
-module.exports = { analyzeDocument, getAnalysisResult };
+// Precisamos criar rota para pegar saldo atual também
+const getUserCredits = async (req, res) => {
+    const user = await User.findById(req.user._id);
+    res.json({ credits: user.credits });
+}
+
+module.exports = { analyzeDocument, getAnalysisResult, getUserCredits };
